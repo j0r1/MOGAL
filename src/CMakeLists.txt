@@ -31,26 +31,26 @@ set(SOURCES
 	mpigeneticalgorithm.cpp )
 
 
-if (NOT UNIX)
+if (MSVC)
 	set(CMAKE_DEBUG_POSTFIX _d)
-endif (NOT UNIX)
+endif (MSVC)
 
-if (UNIX OR MOGAL_COMPILE_STATIC)
+if (NOT MSVC OR MOGAL_COMPILE_STATIC)
 	add_library(mogal-static STATIC ${SOURCES} ${HEADERS})
 	set_target_properties(mogal-static PROPERTIES OUTPUT_NAME mogal)
 	set_target_properties(mogal-static PROPERTIES CLEAN_DIRECT_OUTPUT 1)
 	set(MOGAL_INSTALLTARGETS mogal-static)
 	target_link_libraries(mogal-static ${MOGAL_LINK_LIBS})
-endif (UNIX OR MOGAL_COMPILE_STATIC)
+endif (NOT MSVC OR MOGAL_COMPILE_STATIC)
 
-if (UNIX OR NOT MOGAL_COMPILE_STATIC)
+if (NOT MSVC OR NOT MOGAL_COMPILE_STATIC)
 	add_library(mogal-shared SHARED ${SOURCES} ${HEADERS})
 	set_target_properties(mogal-shared PROPERTIES OUTPUT_NAME mogal)
 	set_target_properties(mogal-shared PROPERTIES VERSION ${VERSION})
 	set_target_properties(mogal-shared PROPERTIES CLEAN_DIRECT_OUTPUT 1)
 	set(MOGAL_INSTALLTARGETS ${MOGAL_INSTALLTARGETS} mogal-shared)
 	target_link_libraries(mogal-shared ${MOGAL_LINK_LIBS})
-endif (UNIX OR NOT MOGAL_COMPILE_STATIC)
+endif (NOT MSVC OR NOT MOGAL_COMPILE_STATIC)
 
 apply_include_paths("${MOGAL_INTERNAL_INCLUDES}")
 apply_include_paths("${MOGAL_EXTERNAL_INCLUDES}")
