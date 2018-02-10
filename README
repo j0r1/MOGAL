@@ -1,6 +1,6 @@
 
                                 MOGAL README
-				  (0.9.0)
+				  (0.10.0)
 
 1. INTRODUCTION
 
@@ -39,9 +39,7 @@ The library depends on:
  * SerUt, which can be found at
    http://research.edm.uhasselt.be/jori/serut/serut.html
 
-Just use the configure script and make to build the library. Run the 
-configure script with option '--help' to see which options can be 
-specified.
+Build using cmake.
 
 4. CONTACT
 

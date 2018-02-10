@@ -24,27 +24,32 @@
 
 */
 
-#ifndef DISTPARAMS_H
+#ifndef MOGAL_DOUBLEVECTORGAFACTORYPARAMS_H
 
-#define DISTPARAMS_H
+#define MOGAL_DOUBLEVECTORGAFACTORYPARAMS_H
 
-#include <mogal/gafactory.h>
+#include "mogalconfig.h"
+#include "gafactory.h"
 
-class DistGAFactoryParams : public mogal::GAFactoryParams
+namespace mogal
+{
+
+class MOGAL_IMPORTEXPORT DoubleVectorGAFactoryParams : public GAFactoryParams
 {
 public:
-	DistGAFactoryParams(double x, double y, double width);
-	~DistGAFactoryParams();
+	DoubleVectorGAFactoryParams();
+	DoubleVectorGAFactoryParams(int numGenomeParams);
+	~DoubleVectorGAFactoryParams();
 
-	double getX() const								{ return m_x; }
-	double getY() const								{ return m_y; }
-	double getWidth() const								{ return m_width; }
+	int getNumberOfParameters() const								{ return m_numGenomeParams; }
 
 	bool write(serut::SerializationInterface &si) const;
 	bool read(serut::SerializationInterface &si);
 private:
-	double m_x, m_y, m_width;
+	int m_numGenomeParams;
 };
 
-#endif // DISTPARAMS_H
+} // end namespace
+
+#endif // MOGAL_DOUBLEVECTORGAFACTORYPARAMS_H
 

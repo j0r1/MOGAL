@@ -3,7 +3,7 @@
   This file is a part of MOGAL, a Multi-Objective Genetic Algorithm
   Library.
   
-  Copyright (C) 2008 Jori Liesenborgs
+  Copyright (C) 2008-2012 Jori Liesenborgs
 
   Contact: jori.liesenborgs@gmail.com
 
@@ -32,6 +32,7 @@
 
 #define MOGAL_GAFACTORYSINGLEOBJECTIVE_H
 
+#include "mogalconfig.h"
 #include "gafactorydefaults.h"
 #include <algorithm>
 
@@ -48,7 +49,7 @@ namespace mogal
  *   - GAFactory::introduceMutations
  *   - GAFactory::selectPreferredGenome
  */
-class GAFactorySingleObjective : public GAFactoryDefaults
+class MOGAL_IMPORTEXPORT GAFactorySingleObjective : public GAFactoryDefaults
 {
 protected:
 	GAFactorySingleObjective()									{ }

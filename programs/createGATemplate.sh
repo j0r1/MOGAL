@@ -34,7 +34,7 @@ public:
 	${GENOMENAME}();
 	~${GENOMENAME}();
 
-	void calculateFitness();
+	bool calculateFitness();
 EOF
 
 if [ "$MULTIOBJECTIVE" = "yes" ] || [ "$MULTIOBJECTIVE" = "y" ] ; then
@@ -71,6 +71,8 @@ public:
 
 	bool init(const mogal::GAFactoryParams *pParams);
 	const mogal::GAFactoryParams *getCurrentParameters() const;
+
+	const mogal::RandomNumberGenerator *getRandomNumberGenerator() const;
 
 	mogal::Genome *createNewGenome() const;
 	size_t getMaximalGenomeSize() const;
@@ -111,9 +113,11 @@ ${GENOMENAME}::~${GENOMENAME}()
 	// TODO: Clean-up object
 }
 
-void ${GENOMENAME}::calculateFitness()
+bool ${GENOMENAME}::calculateFitness()
 {
 	// TODO: calculate the object's fitness
+
+	return true;
 }
 
 EOF
@@ -220,6 +224,12 @@ const mogal::GAFactoryParams *${FACTORYNAME}::getCurrentParameters() const
 	return 0;
 }
 
+const mogal::RandomNumberGenerator *${FACTORYNAME}::getRandomNumberGenerator() const
+{
+	// TODO: Return a pointer to a random number generator (do NOT base it on
+	//       rand() and srand(), these generate terrible random numbers).
+	return 0;
+}
 
 mogal::Genome *${FACTORYNAME}::createNewGenome() const
 {

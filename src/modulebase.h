@@ -3,7 +3,7 @@
   This file is a part of MOGAL, a Multi-Objective Genetic Algorithm
   Library.
   
-  Copyright (C) 2008 Jori Liesenborgs
+  Copyright (C) 2008-2012 Jori Liesenborgs
 
   Contact: jori.liesenborgs@gmail.com
 
@@ -32,6 +32,12 @@
 
 #define MOGAL_MODULEBASE_H
 
+#include "mogalconfig.h"
+
+#ifdef MOGALCONFIG_LOADLIBRARY
+#include <windows.h>
+#endif // MOGALCONFIG_LOADLIBRARY
+
 #include <errut/errorbase.h>
 #include <string>
 #include <list>
@@ -40,7 +46,7 @@ namespace mogal
 {
 
 /** Helper class for loading modules. */
-class ModuleBase : public errut::ErrorBase
+class MOGAL_IMPORTEXPORT ModuleBase : public errut::ErrorBase
 {
 protected:
 	ModuleBase();
@@ -83,7 +89,12 @@ protected:
 	/** Register a function name which should be present in a module when it is opened. */
 	void registerFunctionName(const std::string &name)					{ m_functionNames.push_back(name); }
 private:
+#ifdef MOGALCONFIG_LOADLIBRARY
+	HMODULE m_pModule;
+#else
 	void *m_pModule;
+#endif // MOGALCONFIG_LOADLIBRARY
+
 	std::list<std::string> m_functionNames;	
 };
 	

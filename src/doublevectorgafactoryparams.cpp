@@ -24,58 +24,58 @@
 
 */
 
-#include "distparams.h"
+#include "doublevectorgafactoryparams.h"
+#include <stdio.h>
 
-DistGAFactoryParams::DistGAFactoryParams(double x, double y, double width)
+namespace mogal
 {
-	m_x = x;
-	m_y = y;
-	m_width = width;
+
+DoubleVectorGAFactoryParams::DoubleVectorGAFactoryParams()
+{
+	m_numGenomeParams = -1;
 }
 
-DistGAFactoryParams::~DistGAFactoryParams()
+DoubleVectorGAFactoryParams::DoubleVectorGAFactoryParams(int numParams)
+{
+	m_numGenomeParams = numParams;
+}
+
+DoubleVectorGAFactoryParams::~DoubleVectorGAFactoryParams()
 {
 }
 
-bool DistGAFactoryParams::write(serut::SerializationInterface &si) const
+bool DoubleVectorGAFactoryParams::write(serut::SerializationInterface &si) const
 {
-	if (!si.writeDouble(m_x))
+	if (!si.writeInt32(m_numGenomeParams))
 	{
-		setErrorString("Couldn't write X coordinate for test function");
-		return false;
-	}
-	if (!si.writeDouble(m_y))
-	{
-		setErrorString("Couldn't write Y coordinate for test function");
-		return false;
-	}
-	if (!si.writeDouble(m_width))
-	{
-		setErrorString("Couldn't write initial search width");
+		setErrorString("Can't write the number of genome parameters: " + si.getErrorString());
 		return false;
 	}
 	return true;
 }
 
-bool DistGAFactoryParams::read(serut::SerializationInterface &si)
+bool DoubleVectorGAFactoryParams::read(serut::SerializationInterface &si)
 {
-	if (!si.readDouble(&m_x))
+	int32_t v;
+
+	if (!si.readInt32(&v))
 	{
-		setErrorString("Couldn't read X coordinate for test function");
+		setErrorString("Can't read the number of genome parameters: " + si.getErrorString());
 		return false;
 	}
-	if (!si.readDouble(&m_y))
+
+	if (v < 1)
 	{
-		setErrorString("Couldn't read Y coordinate for test function");
+		char str[1024];
+
+		sprintf(str, "The number of genome parameters read was less than one (%d)", (int)v);
+		setErrorString(str);
 		return false;
 	}
-	if (!si.readDouble(&m_width))
-	{
-		setErrorString("Couldn't read initial search width");
-		return false;
-	}
+
+	m_numGenomeParams = v;
 
 	return true;
 }
 
-
+} // end namespace

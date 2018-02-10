@@ -3,7 +3,7 @@
   This file is a part of MOGAL, a Multi-Objective Genetic Algorithm
   Library.
   
-  Copyright (C) 2008 Jori Liesenborgs
+  Copyright (C) 2008-2012 Jori Liesenborgs
 
   Contact: jori.liesenborgs@gmail.com
 
@@ -32,6 +32,7 @@
 
 #define MOGAL_GAMODULE_H
 
+#include "mogalconfig.h"
 #include "modulebase.h"
 
 namespace mogal
@@ -55,7 +56,7 @@ class GAFactory;
  * }
  *  \endcode
  */
-class GAModule : public ModuleBase
+class MOGAL_IMPORTEXPORT GAModule : public ModuleBase
 {
 public:
 	GAModule();

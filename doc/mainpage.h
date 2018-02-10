@@ -85,32 +85,41 @@
  *
  * 	\subsection dist Distributed calculation example
  *
- * 		The files <tt><b>distmain.cpp</b></tt>, <tt><b>distmodule.cpp</tt></b>,
- * 		<tt><b>distparams.cpp</tt></b> and <tt><b>distparams.h</tt></b> are
- * 		part of an example which illustrates how the genome fitness calculation
- * 		can be distributed.
- *
- * 		To compile the main program:
- * 		\code
+ *		\subsubsection nonmpi Non-MPI example
+ *	 		The files <tt><b>distmain.cpp</b></tt>, <tt><b>distmodule.cpp</b></tt>,
+ * 			<tt><b>distparams.cpp</b></tt> and <tt><b>distparams.h</b></tt> are
+ * 			part of an example which illustrates how the genome fitness calculation
+ * 			can be distributed.
+ *	
+ * 			To compile the main program:
+ *	 		\code
  * g++ -o distmain distmain.cpp distparams.cpp `pkg-config --cflags --libs mogal`
- * 		\endcode
- * 		To compile the module:
- * 		\code
- * g++ -shared -Wl,-soname,distmodule.so -o distmodule.so distmodule.cpp distparams.cpp `pkg-config --cflags --libs mogal`
- * 		\endcode
+ * 			\endcode
+ * 			To compile the module:
+ *	 		\code
+ * g++ -fPIC -shared -Wl,-soname,distmodule.so -o distmodule.so distmodule.cpp distparams.cpp `pkg-config --cflags --libs mogal`
+ * 			\endcode
  *
- * 		To make the program work, you'll have to do two additional things:
- * 		- start a 'gaserver' instance on port 22000 and use the path to distmodule.so
- * 		  as its module directory.
- * 		- start at least one 'gahelper' instance that connects to the
- * 		  'gaserver' instance, and make sure that distmodule.so can be found
- * 		  in its module path as well.
+ * 			To make the program work, you'll have to do two additional things:
+ * 			- start a 'gaserver' instance on port 22000 and use the path to distmodule.so
+ * 			  as its module directory.
+ * 			- start at least one 'gahelper' instance that connects to the
+ * 			  'gaserver' instance, and make sure that distmodule.so can be found
+ * 			  in its module path as well.
  *
- * 		Note that because this example is very simple, the communication
- * 		overhead that is introduced in distributing the fitness calculation
- * 		actually makes it slower than when the calculation would not be
- * 		distributed.
- * 
+ * 			Note that because this example is very simple, the communication
+ * 			overhead that is introduced in distributing the fitness calculation
+ * 			actually makes it slower than when the calculation would not be
+ * 			distributed.
+ *
+ *		\subsubsection mpi MPI example
+ *		
+ *			The example is basically the same as in the previous case, but now only one
+ *			file will need to be compiled:
+ *			\code
+ * g++ -o mpidistmain mpidistmain.cpp `pkg-config --cflags --libs mogal`
+ *			\endcode
+ *			
  * \section contact Contact
  *
  * 	If you have any questions, remarks or requests, you can contact me at

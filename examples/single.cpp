@@ -1,8 +1,35 @@
+/*
+    
+  This file is a part of MOGAL, a Multi-Objective Genetic Algorithm
+  Library.
+  
+  Copyright (C) 2008-2012 Jori Liesenborgs
+
+  Contact: jori.liesenborgs@gmail.com
+
+  This library is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License as published by the Free Software Foundation; either
+  version 2.1 of the License, or (at your option) any later version.
+
+  This library is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+
+  You should have received a copy of the GNU Lesser General Public
+  License along with this library; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  
+  USA
+
+*/
+
 #include <mogal/gafactorysingleobjective.h>
 #include <mogal/genome.h>
 #include <mogal/geneticalgorithm.h>
 #include <serut/serializationinterface.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <time.h>
 #include <iostream>
 
@@ -13,7 +40,7 @@ public:
 	MinGenome(double x, double y);
 	~MinGenome();
 
-	void calculateFitness();
+	bool calculateFitness();
 	bool isFitterThan(const mogal::Genome *pGenome) const;
 	Genome *reproduce(const mogal::Genome *pGenome) const;
 	mogal::Genome *clone() const;
@@ -34,6 +61,20 @@ public:
 	bool read(serut::SerializationInterface &si);
 };
 
+class SimpleRndGen : public mogal::RandomNumberGenerator
+{
+public:
+	SimpleRndGen() { }
+	~SimpleRndGen() { }
+	
+	double pickRandomNumber() const
+	{
+		double randomNumber = (1.0*((double)rand()/(RAND_MAX + 1.0)));
+
+		return randomNumber;
+	}
+};
+
 class MinGAFactory : public mogal::GAFactorySingleObjective
 {
 public:
@@ -44,6 +85,11 @@ public:
 
 	bool init(const mogal::GAFactoryParams *pParams);
 	const mogal::GAFactoryParams *getCurrentParameters() const;
+
+	const mogal::RandomNumberGenerator *getRandomNumberGenerator() const
+	{
+		return &m_rndGen;
+	}
 
 	mogal::Genome *createNewGenome() const;
 	size_t getMaximalGenomeSize() const;
@@ -61,6 +107,7 @@ public:
 	void onSortedPopulation(const std::vector<mogal::GenomeWrapper> &population);
 private:
 	MinGAFactoryParams m_factoryParams;
+	SimpleRndGen m_rndGen;
 };
 
 // Genome implementation
@@ -81,9 +128,11 @@ MinGenome::~MinGenome()
 {
 }
 
-void MinGenome::calculateFitness()
+bool MinGenome::calculateFitness()
 {
 	m_fitness = m_x*m_x + m_y*m_y;
+	
+	return true;
 }
 
 bool MinGenome::isFitterThan(const mogal::Genome *pGenome) const

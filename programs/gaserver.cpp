@@ -3,7 +3,7 @@
   This file is a part of MOGAL, a Multi-Objective Genetic Algorithm
   Library.
   
-  Copyright (C) 2008 Jori Liesenborgs
+  Copyright (C) 2008-2012 Jori Liesenborgs
 
   Contact: jori.liesenborgs@gmail.com
 
@@ -24,31 +24,40 @@
 
 */
 
+// Include the socket stuff first, to avoid problems on the windows platform
+#include <enut/tcpv4socket.h>
+#include <enut/tcppacketsocket.h>
+#include <enut/socketwaiter.h>
+#include <enut/packet.h>
+
+#include "mogalconfig.h"
 #include "gaserver.h"
 #include "geneticalgorithm.h"
 #include "gafactory.h"
 #include "gamodule.h"
 #include "log.h"
-#include <enut/tcpv4socket.h>
-#include <enut/tcppacketsocket.h>
-#include <enut/socketwaiter.h>
-#include <enut/packet.h>
 #include <serut/memoryserializer.h>
 #include <serut/dummyserializer.h>
-#include <sys/time.h>
+#ifdef MOGALCONFIG_NETINET_TCP_H
+	#include <netinet/tcp.h>
+#endif // MOGALCONFIG_NETINET_TCP_H
 #include <signal.h>
 #include <errno.h>
 #include <iostream>
 #include <string>
 #include <list>
 
+#ifdef WIN32
+	#include <sys/types.h>
+	#include <sys/timeb.h>
+#else
+	#include <sys/time.h>
+#endif // WIN32
+
 using namespace mogal;
 
-#define GASERVER_READTIMEOUT							600
 #define GASERVER_FEEDBACKTIMEOUT						20
-#define GASERVER_MAXCALCTIME							30.0
 #define GASERVER_MAXCLOSETIME							60
-#define GASERVER_RECALCTIMEOUT							5
 
 bool endServerLoop = false;
 
@@ -59,11 +68,18 @@ void signalHandler(int val)
 
 inline double getCurrentTime()
 {
+#ifdef WIN32
+	struct _timeb tv;
+
+	_ftime(&tv);
+	return ((double)tv.time) + ((double)tv.millitm/1000.0);
+#else
 	struct timeval tv;
 
 	gettimeofday(&tv, 0);
 
 	return (((double)tv.tv_sec)+((double)tv.tv_usec/1000000.0));
+#endif // WIN32
 }
 
 class ConnectionInfo;
@@ -71,7 +87,7 @@ class ConnectionInfo;
 class ServerAlgorithm : public GeneticAlgorithm
 {
 public:
-	static ServerAlgorithm *ServerAlgorithm::instance()						{ return m_pInstance; }
+	static ServerAlgorithm *instance()								{ return m_pInstance; }
 
 	ServerAlgorithm(nut::TCPSocket &listenSocket, const std::string &baseDir);
 	~ServerAlgorithm();
@@ -190,11 +206,52 @@ ConnectionInfo::ConnectionInfo(nut::TCPPacketSocket *pSocket)
 		 pSocket->getBaseSocket()->getDestinationAddress()->getAddressString().c_str(),
 		 (int)pSocket->getBaseSocket()->getDestinationPort());
 
-	// Set socket buffer sizes
+	// Set socket buffer sizes and keepalive
 	int val = 1024*1024;
 	pSocket->setSocketOption(SOL_SOCKET,SO_SNDBUF,&val,sizeof(int));
 	val = 1024*1024;
 	pSocket->setSocketOption(SOL_SOCKET,SO_RCVBUF,&val,sizeof(int));
+	val = 1;
+	pSocket->setSocketOption(SOL_SOCKET,SO_KEEPALIVE,&val,sizeof(int));
+#ifdef MOGALCONFIG_TCPKEEPALIVEPARAMS
+	val = 60;
+	pSocket->setSocketOption(SOL_TCP,TCP_KEEPIDLE,&val,sizeof(int));
+	val = 20;
+	pSocket->setSocketOption(SOL_TCP,TCP_KEEPINTVL,&val,sizeof(int));
+	val = 10;
+	pSocket->setSocketOption(SOL_TCP,TCP_KEEPCNT,&val,sizeof(int));
+#endif // MOGALCONFIG_TCPKEEPALIVEPARAMS
+	socklen_t valSize = sizeof(int);
+	val = 0;
+	pSocket->getSocketOption(SOL_SOCKET,SO_SNDBUF,&val,&valSize);
+	writeLog(LOG_DEBUG, "  SO_SNDBUF = %d", val);
+
+	valSize = sizeof(int);
+	val = 0;
+	pSocket->getSocketOption(SOL_SOCKET,SO_RCVBUF,&val,&valSize);
+	writeLog(LOG_DEBUG, "  SO_RCVBUF = %d", val);
+
+	valSize = sizeof(int);
+	val = 0;
+	pSocket->getSocketOption(SOL_SOCKET,SO_KEEPALIVE,&val,&valSize);
+	writeLog(LOG_DEBUG, "  SO_KEEPALIVE = %d", val);
+
+#ifdef MOGALCONFIG_TCPKEEPALIVEPARAMS
+	valSize = sizeof(int);
+	val = 0;
+	pSocket->getSocketOption(SOL_TCP,TCP_KEEPIDLE,&val,&valSize);
+	writeLog(LOG_DEBUG, "  TCP_KEEPIDLE = %d", val);
+
+	valSize = sizeof(int);
+	val = 0;
+	pSocket->getSocketOption(SOL_TCP,TCP_KEEPINTVL,&val,&valSize);
+	writeLog(LOG_DEBUG, "  TCP_KEEPINTVL = %d", val);
+
+	valSize = sizeof(int);
+	val = 0;
+	pSocket->getSocketOption(SOL_TCP,TCP_KEEPCNT,&val,&valSize);
+	writeLog(LOG_DEBUG, "  TCP_KEEPCNT = %d", val);
+#endif // MOGALCONFIG_TCPKEEPALIVEPARAMS
 
 	m_pSocket = pSocket;
 	m_state = Unidentified;
@@ -565,6 +622,8 @@ bool ConnectionInfo::sendData(int *pCantHelpCount)
 	int genomeNum = -1;
 	int count = 0;
 
+	writeLog(LOG_DEBUG, "sendData: m_numberOfGenomesToWrite = %d", m_numberOfGenomesToWrite);
+
 	m_lastWrittenGenomeNumbers.clear();
 	while (m_numberOfGenomesWritten < m_numberOfGenomesToWrite && (genomeNum = pAlg->getGenomeToProcess()) >= 0)
 	{
@@ -588,8 +647,11 @@ bool ConnectionInfo::sendData(int *pCantHelpCount)
 	std::list<int>::const_iterator it;
 	
 	for (it = m_lastWrittenGenomeNumbers.begin() ; it != m_lastWrittenGenomeNumbers.end() ; it++)
+	{
 		pAlg->getFactory()->writeGenome(mser, pAlg->getGenome(*it)->getGenome());
-
+		writeLog(LOG_DEBUG, "Sending genome %d to %s:%d", (*it), m_pSocket->getBaseSocket()->getDestinationAddress()->getAddressString().c_str(),
+				                                  (int)m_pSocket->getBaseSocket()->getDestinationPort());
+	}
 	if (!m_pSocket->write(pBuf, mser.getBytesWritten()))
 	{
 		delete [] pBuf;
@@ -638,7 +700,7 @@ bool ConnectionInfo::giveFeedback()
 			mser.writeInt32(GASERVER_COMMAND_CURRENTBEST);
 			mser.writeInt32(num);
 
-			for (int i = 0 ; i < num ; i++, it++)
+			for (size_t i = 0 ; i < num ; i++, it++)
 			{
 				pAlg->getFactory()->writeGenome(mser, (*it));
 				pAlg->getFactory()->writeGenomeFitness(mser, (*it));
@@ -759,28 +821,6 @@ void ServerAlgorithm::run()
 			}
 		}
 
-		// Timeout old connections
-		
-		time_t curTime = time(0);
-		
-		it = m_connections.begin();
-		while (it != m_connections.end())
-		{
-			ConnectionInfo *pInf = *it;
-
-			if ((curTime - pInf->getSocket()->getLastReadTime()) > GASERVER_READTIMEOUT)
-			{
-				writeLog(LOG_DEBUG, "Timeout on connection");
-				
-				it = m_connections.erase(it);
-				if (pInf == m_pClientConnection)
-					m_pClientConnection = 0;
-				delete pInf;
-			}
-			else
-				it++;
-		}
-
 		// Process incoming packets
 	
 		it = m_connections.begin();
@@ -883,7 +923,7 @@ void ServerAlgorithm::run()
 			mser.writeInt32(GASERVER_COMMAND_RESULT);
 			mser.writeInt32(num);
 			
-			for (int i = 0 ; i < num ; i++, it++)
+			for (size_t i = 0 ; i < num ; i++, it++)
 			{
 				Genome *pGenome = *it;
 				
@@ -1141,28 +1181,6 @@ bool ServerAlgorithm::calculateFitness(std::vector<GenomeWrapper> &population)
 			}
 		}
 
-		// Timeout old connections
-		
-		time_t curTime = time(0);
-		
-		it = m_connections.begin();
-		while (it != m_connections.end())
-		{
-			ConnectionInfo *pInf = *it;
-
-			if ((curTime - pInf->getSocket()->getLastReadTime()) > GASERVER_READTIMEOUT)
-			{
-				writeLog(LOG_DEBUG, "Timeout on connection");
-
-				it = m_connections.erase(it);
-				if (pInf == m_pClientConnection)
-					m_pClientConnection = 0;
-				delete pInf;
-			}
-			else
-				it++;
-		}
-
 		// Process incoming packets
 	
 		if (m_pClientConnection)
@@ -1370,7 +1388,7 @@ void ServerAlgorithm::redistributeGenomes(double startTime, double endTime)
 		double lowestNewTime = times[0] + timePerGenome[0];
 		double highestTime = times[0];
 
-		for (int i = 1 ; i < times.size() ; i++)
+		for (size_t i = 1 ; i < times.size() ; i++)
 		{
 			double t1 = times[i];
 			double t2 = t1 + timePerGenome[i];
@@ -1407,12 +1425,12 @@ void ServerAlgorithm::redistributeGenomes(double startTime, double endTime)
 		}
 	}
 
-	for (int i = 0 ; i < genomes.size() ; i++)
+	for (size_t i = 0 ; i < genomes.size() ; i++)
 		connections[i]->setNumberOfGenomesToWrite(genomes[i]);
 
 	// Make sure that the amount of genomes add up to population size
 
-	int genomeCount = 0;
+	size_t genomeCount = 0;
 
 	for (it = m_connections.begin() ; it != m_connections.end() ; it++)
 	{
@@ -1451,7 +1469,7 @@ void ServerAlgorithm::redistributeGenomes(double startTime, double endTime)
 void ServerAlgorithm::distributeExcessGenomes()
 {
 	std::list<ConnectionInfo *>::iterator it;
-	int genomeCount = 0;
+	size_t genomeCount = 0;
 
 	// First we count how many genomes are being distributed at this moment
 
@@ -1506,9 +1524,9 @@ bool ServerAlgorithm::onAlgorithmLoop(GAFactory &factory, bool generationInfoCha
 	return true;
 }
 
-int main(int argc, char *argv[])
+int main2(int argc, char *argv[])
 {
-	if (argc != 4)
+	if (argc != 4) 
 	{
 		std::cerr << "Usage: " << std::endl;
 		std::cerr << std::string(argv[0]) << " debuglevel portnumber moduledir" << std::endl; 
@@ -1520,8 +1538,11 @@ int main(int argc, char *argv[])
 	writeLog(LOG_INFO, "Starting server");
 
 	signal(SIGTERM, signalHandler);
+
+#ifndef WIN32 // TODO: use a cmake-based check
 	signal(SIGHUP, signalHandler);
 	signal(SIGQUIT, signalHandler);
+#endif // WIN32
 	signal(SIGABRT, signalHandler);
 	signal(SIGINT, signalHandler);
 
@@ -1534,13 +1555,16 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
+	if (listenPort == 0 && getDebugLevel() < 2)
+		std::cout << "Listen socket created at port " << listenSocket.getLocalPortNumber() << std::endl;
+
 	if (!listenSocket.listen(32))
 	{
 		writeLog(LOG_ERROR, "Couldn't place socket in listen mode: %s", listenSocket.getErrorString().c_str());
 		return -1;
 	}
 	
-	writeLog(LOG_INFO, "Listen socket created at port %d", (int)listenPort);
+	writeLog(LOG_INFO, "Listen socket created at port %d", (int)listenSocket.getLocalPortNumber());
 
 	// We won't put this inside the next loop to avoid helper connections being closed.
 	ServerAlgorithm servAlg(listenSocket, std::string(argv[3])); 
@@ -1555,3 +1579,15 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
+int main(int argc, char *argv[])
+{
+#ifdef WIN32
+	WSADATA dat;
+	WSAStartup(MAKEWORD(2,2),&dat);
+#endif // WIN32
+	int status = main2(argc, argv);
+#ifdef WIN32
+	WSACleanup();
+#endif
+	return status;
+}

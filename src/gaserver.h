@@ -3,7 +3,7 @@
   This file is a part of MOGAL, a Multi-Objective Genetic Algorithm
   Library.
   
-  Copyright (C) 2008 Jori Liesenborgs
+  Copyright (C) 2008-2012 Jori Liesenborgs
 
   Contact: jori.liesenborgs@gmail.com
 
@@ -27,6 +27,8 @@
 #ifndef GASERVER_H
 
 #define GASERVER_H
+
+#include "mogalconfig.h"
 
 #define GASERVER_MAXPACKSIZE						(128*1024*1024)
 #define GASERVER_PACKID							0x5041434B

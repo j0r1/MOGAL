@@ -3,7 +3,7 @@
   This file is a part of MOGAL, a Multi-Objective Genetic Algorithm
   Library.
   
-  Copyright (C) 2008 Jori Liesenborgs
+  Copyright (C) 2008-2012 Jori Liesenborgs
 
   Contact: jori.liesenborgs@gmail.com
 
@@ -32,6 +32,7 @@
 
 #define MOGAL_GENETICALGORITHM_H
 
+#include "mogalconfig.h"
 #include "genome.h"
 #include <serut/serializationinterface.h>
 #include <enut/networklayeraddress.h>
@@ -80,7 +81,7 @@ class Genome;
  *  fraction of the genomes in the new population should be created by combining two
  *  parent genomes. The rest of the new population is created by cloning.
  */
-class GeneticAlgorithmParams : public errut::ErrorBase
+class MOGAL_IMPORTEXPORT GeneticAlgorithmParams : public errut::ErrorBase
 {
 public:
 	/** Construct an instance with default parameter values. */
@@ -115,7 +116,7 @@ private:
 };
 	
 /** Interface for running a genetic algorithm. */
-class GeneticAlgorithm : public errut::ErrorBase
+class MOGAL_IMPORTEXPORT GeneticAlgorithm : public errut::ErrorBase
 {
 public:
 	GeneticAlgorithm();
@@ -201,6 +202,7 @@ protected:
 	virtual bool onAlgorithmLoop(GAFactory &factory, bool generationInfoChanged);
 	virtual void onCurrentBest(const std::list<Genome *> &bestGenomes) const		{ }
 	virtual void feedbackStatus(const std::string &str) const				{ }
+	virtual bool stopRemoteAlgorithm()							{ return false; }
 private:
 	bool processNewBestGenomes(GAFactory &factory, serut::SerializationInterface &si);
 	

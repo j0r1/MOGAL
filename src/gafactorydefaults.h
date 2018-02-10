@@ -3,7 +3,7 @@
   This file is a part of MOGAL, a Multi-Objective Genetic Algorithm
   Library.
   
-  Copyright (C) 2008 Jori Liesenborgs
+  Copyright (C) 2008-2012 Jori Liesenborgs
 
   Contact: jori.liesenborgs@gmail.com
 
@@ -32,6 +32,7 @@
 
 #define MOGAL_GAFACTORYDEFAULTS_H
 
+#include "mogalconfig.h"
 #include "gafactory.h"
 #include <stdlib.h>
 #include <cmath>
@@ -42,42 +43,34 @@ namespace mogal
 // NOTE: the virtual inheritance is of extreme importance here!
 
 /** Helper class for single-objective and multi-objective base classes. */
-class GAFactoryDefaults : public virtual GAFactory
+class MOGAL_IMPORTEXPORT GAFactoryDefaults : public virtual GAFactory
 {
 public:
 	~GAFactoryDefaults()										{ }
+
 protected:
 	GAFactoryDefaults();
+
+
 
 	void commonBreed(int startOffset, const std::vector<GenomeWrapper> &population, 
 	                 std::vector<GenomeWrapper> &newPopulation);
 
-	int pickGenome(int num)
+	int pickGenome(int num) const
 	{
-		double x;
-		drand48_r(&m_drandBuffer, &x);
-
+		double x = pickDouble();
 		double val = x*(double)num; 
 		return (int)val;
 	}
 
-	int pickGenome(double beta, size_t populationSize)
+	int pickGenome(double beta, size_t populationSize) const
 	{
-		double x;
-		drand48_r(&m_drandBuffer, &x);
-
+		double x = pickDouble();
 		double val = (1.0-std::pow(x, 1.0/(1.0+beta)))*((double)populationSize);
 		return (int)val;
 	}
 
-	double pickDouble()
-	{
-		double x;
-		drand48_r(&m_drandBuffer, &x);
-		return x;
-	}
-private:
-	struct drand48_data m_drandBuffer;
+	double pickDouble() const { return getRandomNumberGenerator()->pickRandomNumber(); }
 };
 
 } // end namespace

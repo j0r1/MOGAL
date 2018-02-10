@@ -3,7 +3,7 @@
   This file is a part of MOGAL, a Multi-Objective Genetic Algorithm
   Library.
   
-  Copyright (C) 2008 Jori Liesenborgs
+  Copyright (C) 2008-2012 Jori Liesenborgs
 
   Contact: jori.liesenborgs@gmail.com
 
@@ -32,20 +32,21 @@
 
 #define MOGAL_GENOME_H
 
+#include "mogalconfig.h"
 #include <string>
 
 namespace mogal
 {
 
 /** Interface for a genome in the genetic algorithm. */
-class Genome
+class MOGAL_IMPORTEXPORT Genome
 {
 public:
 	Genome()											{ }
 	virtual ~Genome()										{ }
 
 	/** Calculate the fitness of this genome. */
-	virtual void calculateFitness() = 0;
+	virtual bool calculateFitness() = 0;
 
 	/** In a multi-objective genetic algorithm, the fitness component
 	 *  specified by \c componentNumber will be used when comparing genomes
@@ -74,6 +75,9 @@ public:
 
 	/** Return a description of the fitness of this genome. */
 	virtual std::string getFitnessDescription() const = 0;
+
+	// TODO
+	virtual void copyFitnessValuesTo(float *pDestination, int amount) const				{ }
 };
 
 /** Wrapper class to sort genomes and to track their evolution. */

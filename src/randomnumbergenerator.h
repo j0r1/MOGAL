@@ -24,27 +24,34 @@
 
 */
 
-#ifndef DISTPARAMS_H
+/**
+ * \file randomnumbergenerator.h
+ */
 
-#define DISTPARAMS_H
+#ifndef MOGAL_RANDOMNUMBERGENERATOR_H
 
-#include <mogal/gafactory.h>
+#define MOGAL_RANDOMNUMBERGENERATOR_H
 
-class DistGAFactoryParams : public mogal::GAFactoryParams
+#include "mogalconfig.h"
+#include <stdint.h>
+
+namespace mogal
+{
+
+/** Abstract interface for a random number generator. */
+class MOGAL_IMPORTEXPORT RandomNumberGenerator
 {
 public:
-	DistGAFactoryParams(double x, double y, double width);
-	~DistGAFactoryParams();
+	RandomNumberGenerator()										{ }
+	virtual ~RandomNumberGenerator()								{ }
 
-	double getX() const								{ return m_x; }
-	double getY() const								{ return m_y; }
-	double getWidth() const								{ return m_width; }
-
-	bool write(serut::SerializationInterface &si) const;
-	bool read(serut::SerializationInterface &si);
-private:
-	double m_x, m_y, m_width;
+	/** A random number generator must implement this function, which should generate a random double between 0 and 1. */
+	virtual double pickRandomNumber() const = 0;
+protected:
+	/** Can be used by derived classes to pick a more or less random seed. */
+	uint32_t pickSeed() const;
 };
 
-#endif // DISTPARAMS_H
+} // end namespace
 
+#endif // MOGAL_RANDOMNUMBERGENERATOR_H

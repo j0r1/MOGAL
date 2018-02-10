@@ -3,7 +3,7 @@
   This file is a part of MOGAL, a Multi-Objective Genetic Algorithm
   Library.
   
-  Copyright (C) 2008 Jori Liesenborgs
+  Copyright (C) 2008-2012 Jori Liesenborgs
 
   Contact: jori.liesenborgs@gmail.com
 
@@ -27,14 +27,60 @@
 #include "gafactorymultiobjective.h"
 #include "genome.h"
 #include <time.h>
-#include <unistd.h>
+//#include <unistd.h>
 #include <stdlib.h>
 #include <list>
+#include <set>
 
-// #include <iostream>
+// TODO for debugging
+//#include <jrtplib3/rtptimeutilities.h>
+#include <iostream>
+
+#ifdef MOGAL_USECUDA
+bool allocDeviceMemory(int numGenomes, int numFitnessMeasures, float **pDeviceFitnessArray, short **pDeviceDominationMap,
+                       int **pDeviceDominatedByCount, int **pDeviceDominatesCount, short **pHostDominationMap);
+void freeDeviceMemory(float *pDeviceFitnessArray, short *pDeviceDominationMap,
+                      int *pDeviceDominatedByCount, int *pDeviceDominatesCount, short *pHostDominationMap);
+void calcDominationInfo(int numGenomes, int numFitnessMeasures, float *pHostFitnessArray, short *pHostDominationMap,
+			int *pHostDominatedByCount, int *pHostDominatesCount,
+                        float *pDeviceFitnessArray, short *pDeviceDominationMap, 
+			int *pDeviceDominatedByCount, int *pDeviceDominatesCount,
+			int blockSize1, int blockSize2, int *pOffsets);
+bool checkCuda(int *pBlockSize1, int *pBlockSize2);
+#endif // MOGAL_USECUDA
 
 namespace mogal
 {
+
+GAFactoryMultiObjective::GAFactoryMultiObjective(size_t numComponents)
+{ 
+	m_numComponents = numComponents; 
+	m_sortInit = false;
+	m_hasCuda = false;
+	m_sortType = Basic;
+
+#ifdef MOGAL_DEBUGTIMING
+	m_totalNewTime = 0;
+	m_totalOldTime = 0;
+	m_totalCudaTime = 0;
+#endif // MOGAL_DEBUGTIMING
+}
+
+GAFactoryMultiObjective::~GAFactoryMultiObjective()
+{
+#ifdef MOGAL_USECUDA
+	if (m_hasCuda)
+	{
+		freeDeviceMemory(m_pDeviceFitnessArray, m_pDeviceDominationMap, m_pDeviceDominatedByCount, 
+		                 m_pDeviceDominatesCount, m_pHostDominationMap);
+
+		delete [] m_pHostFitnessArray;
+		delete [] m_pHostDominatedByCount;
+		delete [] m_pHostDominatesCount;
+		delete [] m_pOffsets;
+	}
+#endif // MOGAL_USECUDA
+}
 
 void GAFactoryMultiObjective::breed(const std::vector<GenomeWrapper> &population, std::vector<GenomeWrapper> &newPopulation)
 {
@@ -163,6 +209,62 @@ void GAFactoryMultiObjective::introduceMutations(std::vector<GenomeWrapper> &new
 
 void GAFactoryMultiObjective::sort(std::vector<GenomeWrapper> &population)
 {
+	if (!m_sortInit)
+	{
+		m_sortInit = true;
+		initSort(population.size());
+	}
+
+#ifdef MOGAL_DEBUGTIMING
+	RTPTime t1a = RTPTime::CurrentTime();
+	sortOld(population);
+	RTPTime t1b = RTPTime::CurrentTime();
+
+	t1b -= t1a;
+
+	m_totalOldTime += t1b.GetDouble();
+
+	for (int i = 0 ; i < m_orderedSets.size() ; i++)
+		std::cout << m_orderedSets[i].size() << " ";
+	std::cout << "(" << m_totalOldTime << ")" << std::endl;
+
+	RTPTime t2a = RTPTime::CurrentTime();
+	sortNew(population);
+	RTPTime t2b = RTPTime::CurrentTime();
+
+	t2b -= t2a;
+
+	m_totalNewTime += t2b.GetDouble();
+
+	for (int i = 0 ; i < m_orderedSets.size() ; i++)
+		std::cout << m_orderedSets[i].size() << " ";
+	std::cout << "(" << m_totalNewTime << ")" <<  std::endl;
+
+	RTPTime t3a = RTPTime::CurrentTime();
+	sortCuda(population);
+	RTPTime t3b = RTPTime::CurrentTime();
+
+	t3b -= t3a;
+
+	m_totalCudaTime += t3b.GetDouble();
+
+	for (int i = 0 ; i < m_orderedSets.size() ; i++)
+		std::cout << m_orderedSets[i].size() << " ";
+	std::cout << "(" << m_totalCudaTime << ")" <<  std::endl;
+
+	std::cout << std::endl;
+#else
+	if (m_sortType == CUDA)
+		sortCuda(population);
+	else if (m_sortType == Optimized)
+		sortNew(population);
+	else
+		sortOld(population);
+#endif // MOGAL_DEBUGTIMING
+}
+
+void GAFactoryMultiObjective::sortOld(std::vector<GenomeWrapper> &population)
+{
 	std::list<GenomeWrapper> sortedList;
 	std::list<GenomeWrapper> nonDominatedSet;
 	std::list<GenomeWrapper> populationLeft;
@@ -194,7 +296,7 @@ void GAFactoryMultiObjective::sort(std::vector<GenomeWrapper> &population)
 				int count1 = 0;
 				int count2 = 0;
 
-				for (int i = 0 ; i < m_numComponents ; i++)
+				for (size_t i = 0 ; i < m_numComponents ; i++)
 				{
 					g->setActiveFitnessComponent(i);
 					g2->setActiveFitnessComponent(i);
@@ -258,9 +360,254 @@ void GAFactoryMultiObjective::sort(std::vector<GenomeWrapper> &population)
 	// std::cout << "Number of sets: " << m_orderedSets.size() << std::endl;
 }
 
+void GAFactoryMultiObjective::sortNew(std::vector<GenomeWrapper> &population)
+{
+//	RTPTime t2a = RTPTime::CurrentTime();
+
+	int popSize = population.size();
+
+	//std::vector<std::set<int> > dominatesGenomes(popSize);
+
+	std::vector<int> dominatedCount(popSize);
+	std::vector<int> dominatesCount(popSize);
+
+	for (int i = 0 ; i < popSize ; i++)
+	{
+		dominatedCount[i] = 0;
+		dominatesCount[i] = 0;
+	}
+
+	for (int i = 0 ; i < popSize-1 ; i++)
+	{
+		Genome *pGenome1 = population[i].getGenome();
+
+		for (int j = i+1 ; j < popSize ; j++)
+		{
+			Genome *pGenome2 = population[j].getGenome();
+			// compare genome i and j
+			
+			size_t betterOrEqualCount1 = 0;
+			size_t betterOrEqualCount2 = 0;
+			size_t equalCount = 0;
+
+			for (size_t k = 0 ; k < m_numComponents ; k++)
+			{
+				pGenome1->setActiveFitnessComponent(k);
+				pGenome2->setActiveFitnessComponent(k);
+
+				if (pGenome1->isFitterThan(pGenome2))
+					betterOrEqualCount1++;
+				else if (pGenome2->isFitterThan(pGenome1))
+					betterOrEqualCount2++;
+				else // equally fit
+				{
+					equalCount++;
+					betterOrEqualCount1++;
+					betterOrEqualCount2++;
+				}
+			}
+
+			if (betterOrEqualCount1 == m_numComponents && equalCount < m_numComponents)
+			{
+				// i dominates j
+				dominatedCount[j]++;
+				//dominatesGenomes[i].insert(j);
+
+				int offset = i*popSize + dominatesCount[i];
+				m_dominatesList[offset] = j;
+
+				dominatesCount[i]++;
+			}
+			if (betterOrEqualCount2 == m_numComponents && equalCount < m_numComponents)
+			{
+				// j dominates i
+				dominatedCount[i]++;
+				//dominatesGenomes[j].insert(i);
+				
+				int offset = j*popSize + dominatesCount[j];
+				m_dominatesList[offset] = i;
+
+				dominatesCount[j]++;
+			}
+		}
+	}
+
+	/*
+	RTPTime t2b = RTPTime::CurrentTime();
+	RTPTime t2c = t2b;
+
+	t2b -= t2a;
+
+	std::cout << "Time for part 1 is " << t2b.GetDouble() << std::endl; 
+*/
+	// We now have all the information we need.
+	
+	bool done = false;
+
+	m_orderedSets.clear();
+
+	while (!done)
+	{
+		std::vector<GenomeWrapper> currentNonDominatedSet;
+		std::vector<int> selectedGenomes;
+
+		for (int i = 0 ; i < popSize ; i++)
+		{
+			if (dominatedCount[i] == 0) // this is not dominated by any other genome
+			{
+				dominatedCount[i] = -1; // make sure we skip it in the future
+				currentNonDominatedSet.push_back(population[i]); // store it
+				selectedGenomes.push_back(i);
+			}
+		}
+				
+		if (currentNonDominatedSet.empty())
+			done = true;
+		else
+		{
+			for (size_t k = 0 ; k < selectedGenomes.size() ; k++)
+			{
+				int i = selectedGenomes[k];
+
+				// check which genomes this one dominates
+
+				/*
+				std::set<int>::const_iterator it = dominatesGenomes[i].begin();
+				std::set<int>::const_iterator endIt = dominatesGenomes[i].end();
+				
+				for (   ; it != endIt ; it++)
+				{
+					int idx = *it;
+				*/
+
+				int offset = i*popSize;
+				int count = dominatesCount[i];
+
+				for (int j = 0 ; j < count ; j++, offset++)
+				{
+					int idx = m_dominatesList[offset];
+
+					// genome i dominates genome idx, but we're going to remove i from the set,
+					// so we can decrease the count
+
+					dominatedCount[idx]--;
+
+					// TODO: for debugging
+					if (dominatedCount[idx] < 0)
+					{
+						std::cerr << "ERROR: dominated count became negative unexpectedly" << std::endl;
+					}
+				}
+			}
+
+			m_orderedSets.push_back(currentNonDominatedSet);
+		}
+	}
+
+	m_populationNDS.clear();
+
+	for (size_t i = 0 ; i < m_orderedSets[0].size() ; i++)
+		m_populationNDS.push_back(m_orderedSets[0][i].getGenome());
+
+/*	std::cout << "Number of sets: " << m_orderedSets.size() << std::endl;
+	for (int i = 0 ; i < m_orderedSets.size() ; i++)
+	{
+		std::cout << "set " << (i+1) << std::endl;
+		for (int j = 0 ; j < m_orderedSets[i].size() ; j++)
+			std::cout << "  " << m_orderedSets[i][j].getGenome()->getFitnessDescription() << std::endl;
+	}
+	std::cout << std::endl;
+	*/
+/*
+	RTPTime t2d = RTPTime::CurrentTime();
+	t2d -= t2c;
+
+	std::cout << "Time for part 2 is " << t2d.GetDouble() << std::endl; */
+}
+
+void GAFactoryMultiObjective::sortCuda(std::vector<GenomeWrapper> &population)
+{
+	if (!m_hasCuda)
+	{
+		std::cout << "No cuda support" << std::endl;
+		return;
+	}
+#ifdef MOGAL_USECUDA
+	// std::cout << "Preparing fitness array" << std::endl;
+
+	float *pFitness = m_pHostFitnessArray;
+	int numGenomes = population.size();
+
+	for (int i = 0 ; i < numGenomes ; i++, pFitness += m_numComponents)
+		population[i].getGenome()->copyFitnessValuesTo(pFitness, m_numComponents);
+
+	calcDominationInfo(numGenomes, m_numComponents, m_pHostFitnessArray, m_pHostDominationMap, m_pHostDominatedByCount, 
+			   m_pHostDominatesCount, m_pDeviceFitnessArray, m_pDeviceDominationMap, m_pDeviceDominatedByCount, 
+			   m_pDeviceDominatesCount, m_blockSize1, m_blockSize2, m_pOffsets);
+
+	bool done = false;
+
+	m_orderedSets.clear();
+
+	while (!done)
+	{
+		std::vector<GenomeWrapper> currentNonDominatedSet;
+		std::vector<int> selectedGenomes;
+
+		for (int i = 0 ; i < numGenomes ; i++)
+		{
+			if (m_pHostDominatedByCount[i] == 0) // this is not dominated by any other genome
+			{
+				m_pHostDominatedByCount[i] = -1; // make sure we skip it in the future
+				currentNonDominatedSet.push_back(population[i]); // store it
+				selectedGenomes.push_back(i);
+			}
+		}
+				
+		if (currentNonDominatedSet.empty())
+			done = true;
+		else
+		{
+			for (int k = 0 ; k < selectedGenomes.size() ; k++)
+			{
+				int i = selectedGenomes[k];
+				int count = m_pHostDominatesCount[i];
+				int offset = m_pOffsets[i];
+
+				// check which genomes this one dominates
+
+				for (int j = 0 ; j < count ; j++, offset++)
+				{
+					int idx = m_pHostDominationMap[offset];
+
+					m_pHostDominatedByCount[idx]--;
+
+					// TODO: for debugging
+					if (m_pHostDominatedByCount[idx] < 0)
+					{
+						std::cerr << "ERROR: dominated count became negative unexpectedly" << std::endl;
+					}
+				}
+			}
+
+			m_orderedSets.push_back(currentNonDominatedSet);
+		}
+	}
+
+	m_populationNDS.clear();
+
+	for (int i = 0 ; i < m_orderedSets[0].size() ; i++)
+		m_populationNDS.push_back(m_orderedSets[0][i].getGenome());
+#endif // MOGAL_USECUDA
+}
+
 // TODO: There's probably a more efficient way to merge these
+//       Probably not all that useful to optimize this. Doesn't seem to
+//       take up much processing time
 void GAFactoryMultiObjective::updateBestGenomes(std::vector<GenomeWrapper> &population)
 {
+	//RTPTime t2a = RTPTime::CurrentTime();
+
 	std::list<Genome *> populationLeft;
 	std::list<Genome *> nonDominatedSet;
 	std::list<Genome *> nonDominatedSet2;
@@ -294,7 +641,7 @@ void GAFactoryMultiObjective::updateBestGenomes(std::vector<GenomeWrapper> &popu
 			int count1 = 0;
 			int count2 = 0;
 
-			for (int i = 0 ; i < m_numComponents ; i++)
+			for (size_t i = 0 ; i < m_numComponents ; i++)
 			{
 				g->setActiveFitnessComponent(i);
 				g2->setActiveFitnessComponent(i);
@@ -319,6 +666,16 @@ void GAFactoryMultiObjective::updateBestGenomes(std::vector<GenomeWrapper> &popu
 			nonDominatedSet.push_back(*it1);
 	}
 
+	
+	/*
+	RTPTime t2b = RTPTime::CurrentTime();
+	RTPTime t2c = t2b;
+
+	t2b -= t2a;
+
+	std::cout << "Time for part 3 is " << t2b.GetDouble() << std::endl; 
+*/
+
 	// remove doubles in the non-dominated set
 	// TODO: it's probably not a good idea to always do this: the doubles should
 	//       really be checked based on the actual genome information
@@ -337,7 +694,7 @@ void GAFactoryMultiObjective::updateBestGenomes(std::vector<GenomeWrapper> &popu
 			Genome *g2 = (*it2);
 			int count = 0;
 
-			for (int i = 0 ; i < m_numComponents ; i++)
+			for (size_t i = 0 ; i < m_numComponents ; i++)
 			{
 				g->setActiveFitnessComponent(i);
 				g2->setActiveFitnessComponent(i);
@@ -360,8 +717,87 @@ void GAFactoryMultiObjective::updateBestGenomes(std::vector<GenomeWrapper> &popu
 	//for (it = nonDominatedSet2.begin() ; it != nonDominatedSet2.end() ; it++)
 	//	std::cout << "  " << (*it)->getFitnessDescription() << std::endl;
 
+/*	RTPTime t2d = RTPTime::CurrentTime();
+	t2d -= t2c;
+
+	std::cout << "Time for part 4 is " << t2d.GetDouble() << std::endl;
+*/
 }
 
+#ifdef MOGAL_DEBUGTIMING
+void GAFactoryMultiObjective::initSort(int populationSize)
+{
+#ifdef MOGAL_USECUDA
+	initSortCUDA(populationSize);
+#endif // MOGAL_USECUDA
+	
+	m_dominatesList.resize(populationSize*populationSize);
+}
+#else
+void GAFactoryMultiObjective::initSort(int populationSize)
+{
+#ifdef MOGAL_USECUDA
+	if (populationSize < 65536)
+	{
+		initSortCUDA(populationSize);
+		if (m_hasCuda)
+		{
+			m_sortType = CUDA;
+			std::cout << "Using CUDA sort" << std::endl;
+			return;
+		}
+	}
+	
+#endif // MOGAL_USECUDA
+	
+	if (populationSize < 65536)
+	{
+		m_dominatesList.resize(populationSize*populationSize);
+		m_sortType = Optimized;
+		std::cout << "Using optimized sort" << std::endl;
+		return;
+	}
+
+	// No init necessary for old algorithm
+	
+	m_sortType = Basic;
+	std::cout <<  "Using basic sort" << std::endl;
+}
+#endif // MOGAL_DEBUGTIMING
+
+void GAFactoryMultiObjective::initSortCUDA(int populationSize)
+{
+#ifdef MOGAL_USECUDA
+	if (!hasFloatingPointFitnessValues())
+	{
+		std::cout << "Genomes do not have floating point fitness values, not using CUDA" << std::endl;
+		m_hasCuda = false;
+		return;
+	}
+
+	if (!checkCuda(&m_blockSize1, &m_blockSize2))
+	{
+		std::cout << "Unable to init cuda" << std::endl;
+		m_hasCuda = false;
+		return;
+	}
+
+	if (!allocDeviceMemory(populationSize, m_numComponents, &m_pDeviceFitnessArray, &m_pDeviceDominationMap,
+	                       &m_pDeviceDominatedByCount, &m_pDeviceDominatesCount, &m_pHostDominationMap))
+	{
+		std::cout << "Unable to allocate memory" << std::endl;
+		m_hasCuda = false;
+		return;
+	}
+
+	m_pHostFitnessArray = new float[m_numComponents*populationSize];
+	m_pHostDominatedByCount = new int[populationSize];
+	m_pHostDominatesCount = new int[populationSize];
+	m_pOffsets = new int[populationSize];
+
+	m_hasCuda = true;
+#endif // MOGAL_USECUDA
+}
 
 } // end namespace
 

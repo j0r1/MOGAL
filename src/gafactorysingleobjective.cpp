@@ -3,7 +3,7 @@
   This file is a part of MOGAL, a Multi-Objective Genetic Algorithm
   Library.
   
-  Copyright (C) 2008 Jori Liesenborgs
+  Copyright (C) 2008-2012 Jori Liesenborgs
 
   Contact: jori.liesenborgs@gmail.com
 
@@ -27,7 +27,7 @@
 #include "gafactorysingleobjective.h"
 #include "genome.h"
 #include <time.h>
-#include <unistd.h>
+//#include <unistd.h>
 #include <stdlib.h>
 #include <list>
 

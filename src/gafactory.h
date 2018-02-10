@@ -3,7 +3,7 @@
   This file is a part of MOGAL, a Multi-Objective Genetic Algorithm
   Library.
   
-  Copyright (C) 2008 Jori Liesenborgs
+  Copyright (C) 2008-2012 Jori Liesenborgs
 
   Contact: jori.liesenborgs@gmail.com
 
@@ -32,14 +32,16 @@
 
 #define MOGAL_GAFACTORY_H
 
+#include "mogalconfig.h"
 #include "geneticalgorithm.h"
+#include "randomnumbergenerator.h"
 #include <vector>
 
 namespace mogal
 {
 
 /** Base class for the parameters of a genetic algorithm factory. */
-class GAFactoryParams : public errut::ErrorBase
+class MOGAL_IMPORTEXPORT GAFactoryParams : public errut::ErrorBase
 {
 protected:
 	GAFactoryParams()										{ }
@@ -65,7 +67,7 @@ public:
  *  for single-objective and multi-objective genetic algorithms are provided in the
  *  classes GAFactorySingleObjective and GAFactoryMultiObjective respectively.
  */
-class GAFactory : public errut::ErrorBase
+class MOGAL_IMPORTEXPORT GAFactory : public errut::ErrorBase
 {
 protected:
 	GAFactory()											{ }
@@ -171,6 +173,12 @@ public:
 	 *  multi-objective genetic algorithm.
 	 */
 	virtual Genome *selectPreferredGenome(const std::list<Genome *> &bestGenomes) const = 0;
+
+	// TODO: for CUDA ND sort, see also copyFitnessValuesTo in genome.h
+	virtual bool hasFloatingPointFitnessValues() const						{ return false; }
+
+	/** Return the random number generator used by this factory. */
+	virtual const RandomNumberGenerator *getRandomNumberGenerator() const = 0;
 protected:
 	/** Returns a pointer to the current genetic algorithm instance. */
 	GeneticAlgorithm *getCurrentAlgorithm()								{ return m_pCurrentAlgorithm; }

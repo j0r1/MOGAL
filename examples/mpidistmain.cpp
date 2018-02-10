@@ -24,15 +24,30 @@
 
 */
 
-#include "distparams.h"
+#include <mpi.h>
 #include <mogal/gafactorysingleobjective.h>
 #include <mogal/genome.h>
-#include <mogal/geneticalgorithm.h>
+#include <mogal/mpigeneticalgorithm.h>
 #include <mogal/randomnumbergenerator.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <iostream>
+
+class DistGAFactoryParams : public mogal::GAFactoryParams
+{
+public:
+	DistGAFactoryParams(double x, double y, double width);
+	~DistGAFactoryParams();
+
+	double getX() const								{ return m_x; }
+	double getY() const								{ return m_y; }
+	double getWidth() const								{ return m_width; }
+
+	bool write(serut::SerializationInterface &si) const;
+	bool read(serut::SerializationInterface &si);
+private:
+	double m_x, m_y, m_width;
+};
 
 class DistGAFactory;
 
@@ -139,7 +154,7 @@ bool DistGenome::calculateFitness()
 	double cy = m_pFactory->getFunctionCenterY();
 
 	m_fitness = (m_x-cx)*(m_x-cx) + (m_y-cy)*(m_y-cy);
-
+	
 	return true;
 }
 
@@ -230,7 +245,6 @@ const mogal::GAFactoryParams *DistGAFactory::getCurrentParameters() const
 {
 	return &m_factoryParams;
 }
-
 
 mogal::Genome *DistGAFactory::createNewGenome() const
 {
@@ -371,10 +385,123 @@ double DistGAFactory::getFunctionCenterY() const
 	return m_functionCenterY;
 }
 
-extern "C"
+DistGAFactoryParams::DistGAFactoryParams(double x, double y, double width)
 {
-	mogal::GAFactory *CreateFactoryInstance()
-	{
-		return new DistGAFactory();
-	}
+	m_x = x;
+	m_y = y;
+	m_width = width;
 }
+
+DistGAFactoryParams::~DistGAFactoryParams()
+{
+}
+
+bool DistGAFactoryParams::write(serut::SerializationInterface &si) const
+{
+	if (!si.writeDouble(m_x))
+	{
+		setErrorString("Couldn't write X coordinate for test function");
+		return false;
+	}
+	if (!si.writeDouble(m_y))
+	{
+		setErrorString("Couldn't write Y coordinate for test function");
+		return false;
+	}
+	if (!si.writeDouble(m_width))
+	{
+		setErrorString("Couldn't write initial search width");
+		return false;
+	}
+	return true;
+}
+
+bool DistGAFactoryParams::read(serut::SerializationInterface &si)
+{
+	if (!si.readDouble(&m_x))
+	{
+		setErrorString("Couldn't read X coordinate for test function");
+		return false;
+	}
+	if (!si.readDouble(&m_y))
+	{
+		setErrorString("Couldn't read Y coordinate for test function");
+		return false;
+	}
+	if (!si.readDouble(&m_width))
+	{
+		setErrorString("Couldn't read initial search width");
+		return false;
+	}
+
+	return true;
+}
+
+int main(int argc, char *argv[])
+{
+	int worldSize, myRank;
+
+	MPI_Init(&argc, &argv);
+	MPI_Comm_size( MPI_COMM_WORLD, &worldSize);
+
+	if (worldSize <= 1)
+	{
+		std::cerr << "Need more than one process to be able to work" << std::endl;
+		MPI_Abort(MPI_COMM_WORLD, -1);
+	}
+
+	MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+
+	int returnStatus = 0;
+	DistGAFactoryParams factoryParams(-1,-1,20);
+
+	if (myRank == 0)
+	{
+		DistGAFactory factory;
+
+		factory.init(&factoryParams);
+	
+		mogal::MPIGeneticAlgorithm ga;
+
+		if (!ga.runMPI(factory, 128))
+		{
+			std::cerr << ga.getErrorString() << std::endl;
+			MPI_Abort(MPI_COMM_WORLD, -1);
+		}
+
+		std::list<mogal::Genome *> bestGenomes;
+		std::list<mogal::Genome *>::const_iterator it;
+
+		ga.getBestGenomes(bestGenomes);
+
+		std::cout << "Best genomes: " << std::endl;
+		
+		for (it = bestGenomes.begin() ; it != bestGenomes.end() ; it++)
+		{
+			const mogal::Genome *pGenome = *it;
+			
+			std::cout << "  " << pGenome->getFitnessDescription() << std::endl;
+		}
+	}
+	else
+	{
+		DistGAFactory factory;
+
+		factory.init(&factoryParams);
+
+		mogal::MPIGeneticAlgorithm ga;
+
+		if (!ga.runMPIHelper(factory))
+		{
+			std::cerr << ga.getErrorString() << std::endl;
+			MPI_Abort(MPI_COMM_WORLD, -1);
+		}
+	}
+
+	MPI_Finalize();
+
+	return 0;
+}
+
+
+

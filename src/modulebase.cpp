@@ -3,7 +3,7 @@
   This file is a part of MOGAL, a Multi-Objective Genetic Algorithm
   Library.
   
-  Copyright (C) 2008 Jori Liesenborgs
+  Copyright (C) 2008-2012 Jori Liesenborgs
 
   Contact: jori.liesenborgs@gmail.com
 
@@ -25,6 +25,91 @@
 */
 
 #include "modulebase.h"
+
+#ifdef MOGALCONFIG_LOADLIBRARY
+
+namespace mogal
+{
+
+#define MODULEBASE_ERRSTR_ALREADYOPEN			"A module has already been opened"
+#define MODULEBASE_ERRSTR_NOTOPEN			"No module has been opened yet"
+#define MODULEBASE_ERRSTR_COULDNTFINDFUNCTION		"Couldn't find the function name: "
+#define MODULEBASE_ERRSTR_COULDNTOPEN			"Couldn't open the module - error code: "
+
+ModuleBase::ModuleBase()
+{
+	m_pModule = 0;
+}
+
+ModuleBase::~ModuleBase()
+{
+	close();
+}
+
+bool ModuleBase::open(const std::string &modulePath)
+{
+	if (m_pModule != 0)
+	{
+		setErrorString(MODULEBASE_ERRSTR_ALREADYOPEN);
+		return false;
+	}
+	
+	HMODULE module = LoadLibrary(modulePath.c_str());
+
+	if (module == 0)
+	{
+		char errCode[1024];
+
+		sprintf(errCode, "%d", (int)GetLastError());
+		setErrorString(std::string(MODULEBASE_ERRSTR_COULDNTOPEN) + std::string(errCode));
+		return false;
+	}
+
+	// look for requested symbols
+	std::list<std::string>::const_iterator it;
+
+	for (it = m_functionNames.begin() ; it != m_functionNames.end() ; it++)
+	{
+		std::string name = (*it);
+		void *pFunction = GetProcAddress(module, name.c_str());
+		
+		if (pFunction == 0)
+		{
+			setErrorString(std::string(MODULEBASE_ERRSTR_COULDNTFINDFUNCTION) + name);
+			FreeLibrary(module);
+			return false;
+		}
+
+		onFoundFunctionName(name, pFunction);
+	}
+
+	m_pModule = module;
+	return true;
+}
+
+bool ModuleBase::open(const std::string &baseDirectory, const std::string &moduleName)
+{
+	std::string fullPath = baseDirectory + std::string("\\") + moduleName;
+	return open(fullPath);
+}
+
+bool ModuleBase::close()
+{
+	if (m_pModule == 0)
+	{
+		setErrorString(MODULEBASE_ERRSTR_NOTOPEN);
+		return false;
+	}
+
+	FreeLibrary(m_pModule);
+	m_pModule = 0;
+
+	return true;
+}
+
+} // end namespace
+#else 
+
 #include <dlfcn.h>
 
 namespace mogal
@@ -105,3 +190,4 @@ bool ModuleBase::close()
 
 } // end namespace
 
+#endif // MOGALCONFIG_LOADLIBRARY

@@ -3,7 +3,7 @@
   This file is a part of MOGAL, a Multi-Objective Genetic Algorithm
   Library.
   
-  Copyright (C) 2008 Jori Liesenborgs
+  Copyright (C) 2008-2012 Jori Liesenborgs
 
   Contact: jori.liesenborgs@gmail.com
 
@@ -24,17 +24,23 @@
 
 */
 
-#include "geneticalgorithm.h"
-#include "gafactory.h"
-#include "gaserver.h"
-#include "gamodule.h"
+// Include network stuff first, to avoid problems on Windows
 #include <enut/tcppacketsocket.h>
 #include <enut/tcpv4socket.h>
 #include <enut/packet.h>
 #include <enut/socketwaiter.h>
+
+#include "mogalconfig.h"
+#include "geneticalgorithm.h"
+#include "gafactory.h"
+#include "gaserver.h"
+#include "gamodule.h"
 #include <serut/dummyserializer.h>
 #include <serut/memoryserializer.h>
 #include <serut/tcpserializer.h>
+#ifdef MOGALCONFIG_NETINET_TCP_H
+	#include <netinet/tcp.h>
+#endif // MOGALCONFIG_NETINET_TCP_H
 #include <algorithm>
 
 namespace mogal
@@ -289,7 +295,6 @@ bool GeneticAlgorithm::run(GAFactory &factory, size_t populationSize, const Gene
 
 	factory.onGeneticAlgorithmStop();
 	factory.setCurrentAlgorithm(0, params);
-
 	return true;
 }
 
@@ -315,11 +320,22 @@ bool GeneticAlgorithm::run(const nut::NetworkLayerAddress &serverAddress, uint16
 	nut::TCPv4Socket sock;
 	nut::TCPPacketSocket connection(&sock, false, false, GASERVER_MAXPACKSIZE, sizeof(uint32_t), GASERVER_PACKID);
 
-	// Set socket buffer sizes
+	// Set socket buffer sizes and keepalive values
 	int val = 1024*1024;
-	sock.setSocketOption(SOL_SOCKET, SO_SNDBUF, &val, sizeof(int));
+	sock.setSocketOption(SOL_SOCKET,SO_SNDBUF,&val,sizeof(int));
 	val = 1024*1024;
-	sock.setSocketOption(SOL_SOCKET, SO_RCVBUF, &val, sizeof(int));
+	sock.setSocketOption(SOL_SOCKET,SO_RCVBUF,&val,sizeof(int));
+	val = 1;
+	sock.setSocketOption(SOL_SOCKET,SO_KEEPALIVE,&val,sizeof(int));
+
+#ifdef MOGALCONFIG_TCPKEEPALIVEPARAMS
+	val = 60;
+	sock.setSocketOption(SOL_TCP,TCP_KEEPIDLE,&val,sizeof(int));
+	val = 20;
+	sock.setSocketOption(SOL_TCP,TCP_KEEPINTVL,&val,sizeof(int));
+	val = 10;
+	sock.setSocketOption(SOL_TCP,TCP_KEEPCNT,&val,sizeof(int));
+#endif // MOGALCONFIG_TCPKEEPALIVEPARAMS
 
 	feedbackStatus("Connecting to server");
 	if (!sock.create())
@@ -330,7 +346,7 @@ bool GeneticAlgorithm::run(const nut::NetworkLayerAddress &serverAddress, uint16
 
 	if (!sock.connect(serverAddress, serverPort))
 	{
-		setErrorString(std::string(GENETICALGORITHM_ERRSTR_CANTCONNECTTOSERVER) + connection.getErrorString());
+		setErrorString(std::string(GENETICALGORITHM_ERRSTR_CANTCONNECTTOSERVER) + sock.getErrorString());
 		return false;
 	}
 
@@ -471,6 +487,12 @@ bool GeneticAlgorithm::run(const nut::NetworkLayerAddress &serverAddress, uint16
 	done = false;
 	while (!done)
 	{
+		if (stopRemoteAlgorithm())
+		{
+			setErrorString("Stop genetic algorithm was signalled");
+			return false;
+		}
+
 		if (!connection.waitForData(0, 200000))
 		{
 			setErrorString(connection.getErrorString());
@@ -532,24 +554,6 @@ bool GeneticAlgorithm::run(const nut::NetworkLayerAddress &serverAddress, uint16
 				else
 				{
 					setErrorString(GENETICALGORITHM_ERRSTR_INVALIDPACKET);
-					return false;
-				}
-			}
-		}
-
-		if (!done)
-		{
-			time_t currentTime = time(0);
-
-			if ((currentTime - connection.getLastWriteTime()) > GENETICALGORITHM_KEEPALIVEINTERVAL)
-			{
-				uint8_t buf[sizeof(int32_t)];
-				serut::MemorySerializer mser(0, 0, buf, sizeof(int32_t));
-				mser.writeInt32(GASERVER_COMMAND_KEEPALIVE);
-
-				if (!connection.write(buf, sizeof(int32_t)))
-				{
-					setErrorString(std::string(GENETICALGORITHM_ERRSTR_CANTWRITEKEEPALIVE) + connection.getErrorString());
 					return false;
 				}
 			}
@@ -710,7 +714,13 @@ bool GeneticAlgorithm::processNewBestGenomes(GAFactory &factory, serut::Serializ
 bool GeneticAlgorithm::calculateFitness(std::vector<GenomeWrapper> &population)
 {
 	for (size_t i = 0 ; i < population.size() ; i++)
-		population[i].getGenome()->calculateFitness();
+	{
+		if (!population[i].getGenome()->calculateFitness())
+		{
+			setErrorString("Can't calculate the fitness of a specific genome");
+			return false;
+		}
+	}
 	return true;
 }
 

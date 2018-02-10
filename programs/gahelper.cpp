@@ -3,12 +3,12 @@
   This file is a part of MOGAL, a Multi-Objective Genetic Algorithm
   Library.
   
-  Copyright (C) 2008 Jori Liesenborgs
+  Copyright (C) 2008-2012 Jori Liesenborgs
 
   Contact: jori.liesenborgs@gmail.com
 
   This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
+  modify it under the terms of the GNU Lesser General ublic
   License as published by the Free Software Foundation; either
   version 2.1 of the License, or (at your option) any later version.
 
@@ -24,26 +24,29 @@
 
 */
 
+// Include the socket stuff first, to avoid problems on the windows platform
+#include <enut/socketwaiter.h>
+#include <enut/tcppacketsocket.h>
+#include <enut/tcpv4socket.h>
+#include <enut/packet.h>
+#include <enut/ipv4address.h>
+
+#include "mogalconfig.h"
 #include "gaserver.h"
 #include "gafactory.h"
 #include "gamodule.h"
 #include "genome.h"
 #include "geneticalgorithm.h"
 #include "log.h"
-#include <enut/socketwaiter.h>
-#include <enut/tcppacketsocket.h>
-#include <enut/tcpv4socket.h>
-#include <enut/packet.h>
-#include <enut/ipv4address.h>
 #include <serut/memoryserializer.h>
 #include <serut/dummyserializer.h>
-#include <sys/time.h>
+#ifdef MOGALCONFIG_NETINET_TCP_H
+	#include <netinet/tcp.h>
+#endif // MOGALCONFIG_NETINET_TCP_H
 #include <signal.h>
 #include <time.h>
 #include <iostream>
 #include <string>
-
-#define GAHELPER_KEEPALIVETIMEOUT					10
 
 using namespace mogal;
 
@@ -260,22 +263,18 @@ bool processPacket(nut::TCPPacketSocket &connection, const uint8_t *pData, size_
 				return false;
 			}
 
-			pGenome->calculateFitness();
+			if (!pGenome->calculateFitness())
+			{
+				writeLog(LOG_ERROR, "Coudln't calculate genome fitness");
+				delete pGenome;
+				delete [] pBuf;
+				return false;
+			}
 			
 			// write result
 		
 			m_pFactory->writeGenomeFitness(ms, pGenome);
 			delete pGenome;
-
-			if (time(0) - connection.getLastWriteTime() > GAHELPER_KEEPALIVETIMEOUT) // send keepalive if necessary
-			{
-				uint8_t buf[sizeof(int32_t)];
-				serut::MemorySerializer mser(0,0,buf,sizeof(int32_t));
-
-				mser.writeInt32(GASERVER_COMMAND_KEEPALIVE);
-
-				connection.write(buf, sizeof(int32_t));
-			}
 		}
 		
 		connection.write(pBuf, ms.getBytesWritten());
@@ -290,7 +289,7 @@ bool processPacket(nut::TCPPacketSocket &connection, const uint8_t *pData, size_
 	return true;
 }
 
-int main(int argc, char *argv[])
+int main2(int argc, char *argv[])
 {
 	if (argc != 5)
 	{
@@ -324,16 +323,58 @@ int main(int argc, char *argv[])
 	if (!tcpSocket.connect(address, port))
 	{
 		writeLog(LOG_ERROR, "Couldn't open connection to %s:%d: %s",
-		         address.getAddressString().c_str(), (int)port, tcpSocket.getErrorString().c_str());
+					address.getAddressString().c_str(), (int)port, tcpSocket.getErrorString().c_str());
 		return -1;
 	}
 	
-	// Set socket buffer sizes
-
+	// Set socket buffer sizes and keepalive
 	int val = 1024*1024;
-	tcpSocket.setSocketOption(SOL_SOCKET, SO_SNDBUF, &val, sizeof(int));
+	tcpSocket.setSocketOption(SOL_SOCKET,SO_SNDBUF,&val,sizeof(int));
 	val = 1024*1024;
-	tcpSocket.setSocketOption(SOL_SOCKET, SO_RCVBUF, &val, sizeof(int));
+	tcpSocket.setSocketOption(SOL_SOCKET,SO_RCVBUF,&val,sizeof(int));
+	val = 1;
+	tcpSocket.setSocketOption(SOL_SOCKET,SO_KEEPALIVE,&val,sizeof(int));
+
+#ifdef MOGALCONFIG_TCPKEEPALIVEPARAMS
+	val = 60;
+	tcpSocket.setSocketOption(SOL_TCP,TCP_KEEPIDLE,&val,sizeof(int));
+	val = 20;
+	tcpSocket.setSocketOption(SOL_TCP,TCP_KEEPINTVL,&val,sizeof(int));
+	val = 10;
+	tcpSocket.setSocketOption(SOL_TCP,TCP_KEEPCNT,&val,sizeof(int));
+#endif // MOGALCONFIG_TCPKEEPALIVEPARAMS
+
+	socklen_t valSize = sizeof(int);
+	val = 0;
+	tcpSocket.getSocketOption(SOL_SOCKET,SO_SNDBUF,&val,&valSize);
+	writeLog(LOG_DEBUG, "  SO_SNDBUF = %d", val);
+
+	valSize = sizeof(int);
+	val = 0;
+	tcpSocket.getSocketOption(SOL_SOCKET,SO_RCVBUF,&val,&valSize);
+	writeLog(LOG_DEBUG, "  SO_RCVBUF = %d", val);
+
+	valSize = sizeof(int);
+	val = 0;
+	tcpSocket.getSocketOption(SOL_SOCKET,SO_KEEPALIVE,&val,&valSize);
+	writeLog(LOG_DEBUG, "  SO_KEEPALIVE = %d", val);
+
+#ifdef MOGALCONFIG_TCPKEEPALIVEPARAMS
+	valSize = sizeof(int);
+	val = 0;
+	tcpSocket.getSocketOption(SOL_TCP,TCP_KEEPIDLE,&val,&valSize);
+	writeLog(LOG_DEBUG, "  TCP_KEEPIDLE = %d", val);
+
+	valSize = sizeof(int);
+	val = 0;
+	tcpSocket.getSocketOption(SOL_TCP,TCP_KEEPINTVL,&val,&valSize);
+	writeLog(LOG_DEBUG, "  TCP_KEEPINTVL = %d", val);
+
+	valSize = sizeof(int);
+	val = 0;
+	tcpSocket.getSocketOption(SOL_TCP,TCP_KEEPCNT,&val,&valSize);
+	writeLog(LOG_DEBUG, "  TCP_KEEPCNT = %d", val);
+#endif // MOGALCONFIG_TCPKEEPALIVEPARAMS
 
 	// Ok, connection opened, send identification
 
@@ -351,8 +392,10 @@ int main(int argc, char *argv[])
 	}
 
 	signal(SIGTERM, signalHandler);
+#ifndef WIN32 // TODO: use a cmake-based check
 	signal(SIGHUP, signalHandler);
 	signal(SIGQUIT, signalHandler);
+#endif // WIN32
 	signal(SIGABRT, signalHandler);
 	signal(SIGINT, signalHandler);
 
@@ -401,22 +444,6 @@ int main(int argc, char *argv[])
 				}
 			}
 		}
-
-		time_t curTime = time(0);	
-
-		if ((curTime - connection.getLastWriteTime()) > GAHELPER_KEEPALIVETIMEOUT)
-		{
-			uint8_t buf[sizeof(int32_t)];
-			serut::MemorySerializer mser(0,0,buf,sizeof(int32_t));
-
-			mser.writeInt32(GASERVER_COMMAND_KEEPALIVE);
-
-			if (!connection.write(buf, sizeof(int32_t)))
-			{
-				writeLog(LOG_ERROR, "Couldn't write keepalive packet: %s", connection.getErrorString().c_str());
-				return -1;
-			}
-		}
 	}
 	
 	if (m_pFactory)
@@ -429,3 +456,15 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
+int main(int argc, char *argv[])
+{
+#ifdef WIN32
+	WSADATA dat;
+	WSAStartup(MAKEWORD(2,2),&dat);
+#endif // WIN32
+	int status = main2(argc, argv);
+#ifdef WIN32
+	WSACleanup();
+#endif
+	return status;
+}

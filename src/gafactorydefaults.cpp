@@ -3,7 +3,7 @@
   This file is a part of MOGAL, a Multi-Objective Genetic Algorithm
   Library.
   
-  Copyright (C) 2008 Jori Liesenborgs
+  Copyright (C) 2008-2012 Jori Liesenborgs
 
   Contact: jori.liesenborgs@gmail.com
 
@@ -27,7 +27,7 @@
 #include "gafactorydefaults.h"
 #include "genome.h"
 #include <time.h>
-#include <unistd.h>
+//#include <unistd.h>
 #include <stdlib.h>
 #include <list>
 #include <algorithm>
@@ -37,14 +37,6 @@ namespace mogal
 
 GAFactoryDefaults::GAFactoryDefaults()
 {
-	uint32_t x;
-
-	x = (uint32_t)getpid();
-	x += (uint32_t)time(0);
-	x -= (uint32_t)clock();
-	x ^= (uint32_t)(this);
-
-	srand48_r(x, &m_drandBuffer);
 }
 
 void GAFactoryDefaults::commonBreed(int startOffset, const std::vector<GenomeWrapper> &population, std::vector<GenomeWrapper> &newPopulation)
@@ -54,9 +46,8 @@ void GAFactoryDefaults::commonBreed(int startOffset, const std::vector<GenomeWra
 
 	for (int i = startOffset ; i < populationSize ; i++)
 	{
-		double x;
-		drand48_r(&m_drandBuffer, &x);
-
+		double x = pickDouble();
+		
 		if (x < gaParams.getCrossOverRate())
 		{
 			int count = 0;

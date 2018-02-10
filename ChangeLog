@@ -3,6 +3,18 @@
                                MOGAL ChangeLog
 
 
+Version 0.10.0, July 2012
+ * Fixed small bug in error message in GeneticAlgorithm. Occurred
+   when connection to gaserver failed.
+ * Added faster non-dominated sort routine
+ * Added CUDA based non-dominated sort routine (by default disabled
+   now, needs more testing)
+ * Switched to CMake build system
+ * Should be possible to build on an MS-Windows platform as well now.
+ * Added support for MPI.
+ * Added DoubleVectorGenome and factory. Can be a good starting point
+   to develop your own GA.
+
 Version 0.9.0, May 2008
  * Initial public release
 
