@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 cmake_policy(SET CMP0026 OLD)
 
 project(mogal)
-set(VERSION 0.10.1)
+set(VERSION 0.11.0)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake")
 

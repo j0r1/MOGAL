@@ -84,6 +84,12 @@ GAFactoryMultiObjective::~GAFactoryMultiObjective()
 
 void GAFactoryMultiObjective::breed(const std::vector<GenomeWrapper> &population, std::vector<GenomeWrapper> &newPopulation)
 {
+	if (m_numComponents == 1) // Fall back to single objective code
+	{
+		GAFactorySingleObjective::breed(population, newPopulation);
+		return;
+	}
+
 	int populationSize = population.size();
 	int index = 0;
 	int eliteCount = (int)(((double)(populationSize)*0.005)+0.5); // TODO: make this percentage configurable
@@ -166,8 +172,12 @@ void GAFactoryMultiObjective::breed(const std::vector<GenomeWrapper> &population
 				
 				index1 = pickGenome(gaParams.getBeta(), numSets);
 				index2 = pickGenome(gaParams.getBeta(), numSets);
-				subIndex1 = pickGenome(m_orderedSets[index1].size());
-				subIndex2 = pickGenome(m_orderedSets[index2].size());
+				subIndex1 = 0;
+				subIndex2 = 0;
+				if (m_orderedSets[index1].size() > 1)
+					subIndex1 = pickGenome(m_orderedSets[index1].size());
+				if (m_orderedSets[index2].size() > 1)
+					subIndex2 = pickGenome(m_orderedSets[index2].size());
 
 				// prevent inbreeding
 
@@ -201,6 +211,12 @@ void GAFactoryMultiObjective::breed(const std::vector<GenomeWrapper> &population
 
 void GAFactoryMultiObjective::introduceMutations(std::vector<GenomeWrapper> &newPopulation)
 {
+	if (m_numComponents == 1) // Fall back to single objective code
+	{
+		GAFactorySingleObjective::introduceMutations(newPopulation);
+		return;
+	}
+
 	int populationSize = newPopulation.size();
 	
 	for (int i = m_offset ; i < populationSize ; i++)
@@ -209,6 +225,12 @@ void GAFactoryMultiObjective::introduceMutations(std::vector<GenomeWrapper> &new
 
 void GAFactoryMultiObjective::sort(std::vector<GenomeWrapper> &population)
 {
+	if (m_numComponents == 1) // Fall back to single objective code
+	{
+		GAFactorySingleObjective::sort(population);
+		return;
+	}
+
 	if (!m_sortInit)
 	{
 		m_sortInit = true;
@@ -606,6 +628,12 @@ void GAFactoryMultiObjective::sortCuda(std::vector<GenomeWrapper> &population)
 //       take up much processing time
 void GAFactoryMultiObjective::updateBestGenomes(std::vector<GenomeWrapper> &population)
 {
+	if (m_numComponents == 1) // Fall back to single objective code
+	{
+		GAFactorySingleObjective::updateBestGenomes(population);
+		return;
+	}
+
 	//RTPTime t2a = RTPTime::CurrentTime();
 
 	std::list<Genome *> populationLeft;

@@ -3,6 +3,11 @@
                                MOGAL ChangeLog
 
 
+Version 0.11.0, November 2016
+ * In case a multi-objective algorithm is used, but the number of fitness
+   components is one, the (faster) routines from the single-objective
+   version are used.
+
 Version 0.10.1, February 2016
  * Small adjustment in setting some socket options. Now also compiles on 
    OS X.

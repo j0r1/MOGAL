@@ -187,7 +187,7 @@ protected:
 	GeneticAlgorithmParams getCurrentAlgorithmParameters() const					{ return m_gaParams; }
 private:
 	void setCurrentAlgorithm(GeneticAlgorithm *pAlgorithm, const GeneticAlgorithmParams &params)	{ m_pCurrentAlgorithm = pAlgorithm; m_gaParams = params; }
-	
+
 	GeneticAlgorithm *m_pCurrentAlgorithm;
 	GeneticAlgorithmParams m_gaParams;
 

@@ -33,7 +33,7 @@
 #define MOGAL_GAFACTORYMULTIOBJECTIVE_H
 
 #include "mogalconfig.h"
-#include "gafactorydefaults.h"
+#include "gafactorysingleobjective.h"
 
 //#define MOGAL_DEBUGTIMING
 
@@ -49,7 +49,7 @@ namespace mogal
  *   - GAFactory::breed
  *   - GAFactory::introduceMutations
  */
-class MOGAL_IMPORTEXPORT GAFactoryMultiObjective : public GAFactoryDefaults
+class MOGAL_IMPORTEXPORT GAFactoryMultiObjective : public GAFactorySingleObjective
 {
 protected:
 	/** Constructs a factory for a multi-objective genetic algorithm with \c numComponents fitness measures. */
