@@ -3,6 +3,10 @@
                                MOGAL ChangeLog
 
 
+Version 0.10.1, February 2016
+ * Small adjustment in setting some socket options. Now also compiles on 
+   OS X.
+
 Version 0.10.0, July 2012
  * Fixed small bug in error message in GeneticAlgorithm. Occurred
    when connection to gaserver failed.

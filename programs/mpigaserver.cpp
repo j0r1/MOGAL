@@ -268,13 +268,17 @@ void runServer(nut::TCPSocket *pSocket, const std::string &moduleDir, int numPro
 	pSocket->setSocketOption(SOL_SOCKET,SO_RCVBUF,&val,sizeof(int));
 	val = 1;
 	pSocket->setSocketOption(SOL_SOCKET,SO_KEEPALIVE,&val,sizeof(int));
+#ifdef __APPLE__
+	val = 20;
+	pSocket->setSocketOption(IPPROTO_TCP, TCP_KEEPALIVE, &val, sizeof(int));
+#else
 	val = 60;
 	pSocket->setSocketOption(SOL_TCP,TCP_KEEPIDLE,&val,sizeof(int));
 	val = 20;
 	pSocket->setSocketOption(SOL_TCP,TCP_KEEPINTVL,&val,sizeof(int));
 	val = 10;
 	pSocket->setSocketOption(SOL_TCP,TCP_KEEPCNT,&val,sizeof(int));
-
+#endif
 	socklen_t valSize = sizeof(int);
 	val = 0;
 	pSocket->getSocketOption(SOL_SOCKET,SO_SNDBUF,&val,&valSize);
@@ -289,7 +293,12 @@ void runServer(nut::TCPSocket *pSocket, const std::string &moduleDir, int numPro
 	val = 0;
 	pSocket->getSocketOption(SOL_SOCKET,SO_KEEPALIVE,&val,&valSize);
 	writeLog(LOG_DEBUG, "  SO_KEEPALIVE = %d", val);
-
+#ifdef __APPLE__
+	valSize = sizeof(int);
+	val = 0;
+	pSocket->getSocketOption(IPPROTO_TCP, TCP_KEEPALIVE,&val,&valSize);
+	writeLog(LOG_DEBUG, "  TCP_KEEPALIVE = %d", val);
+#else
 	valSize = sizeof(int);
 	val = 0;
 	pSocket->getSocketOption(SOL_TCP,TCP_KEEPIDLE,&val,&valSize);
@@ -304,7 +313,7 @@ void runServer(nut::TCPSocket *pSocket, const std::string &moduleDir, int numPro
 	val = 0;
 	pSocket->getSocketOption(SOL_TCP,TCP_KEEPCNT,&val,&valSize);
 	writeLog(LOG_DEBUG, "  TCP_KEEPCNT = %d", val);
-
+#endif
 	// Create packet socket
 
 	nut::TCPPacketSocket packetSocket(pSocket, true, false, GASERVER_MAXPACKSIZE, sizeof(uint32_t), GASERVER_PACKID);
