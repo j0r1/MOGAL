@@ -1,0 +1,8 @@
+ * Basic GA code should be cleaned up: in principle, only a function
+   is needed which creates a new population from an existing one. The
+   rest can be moved to a base class of a genetic algorithm factory.
+ * Use a more general kind of ID for the genomes, to help track the
+   evolution. In a multi-objective GA, the non-dominated set is not
+   entirely present in each population, so the index in the population
+   array cannot be used for this.
+ 

@@ -1,0 +1,25 @@
+AC_INIT(configure.in)
+AM_INIT_AUTOMAKE(mogal, 0.9.0)
+
+MOGALLINKLIBS="-ldl"
+MOGALINCLUDES=""
+
+AC_LANG(C++)
+AC_PROG_CXX
+AM_PROG_LIBTOOL
+
+PKG_PROG_PKG_CONFIG(0.1)
+PKG_CHECK_MODULES([SerUt],[ serut ])
+PKG_CHECK_MODULES([ENUt],[ enut ])
+
+AC_SUBST(MOGALINCLUDES)
+AC_SUBST(MOGALLINKLIBS)
+
+AC_OUTPUT(Makefile \
+	  src/Makefile \
+	  doc/Makefile \
+	  pkgconfig/Makefile \
+	  pkgconfig/mogal.pc \
+	  pkgconfig/mogal-uninstalled.pc \
+	  )
+
