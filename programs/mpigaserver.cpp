@@ -37,6 +37,7 @@
 #include <enut/packet.h>
 #include <serut/memoryserializer.h>
 #include <serut/dummyserializer.h>
+#include <serut/vectorserializer.h>
 #include <netinet/tcp.h>
 #include <sys/time.h>
 #include <signal.h>
@@ -73,7 +74,13 @@ protected:
 		::writeLog(level, fmt, ap);
 		va_end(ap);
 	}
+
+	void onMessage(const std::string &msg);
+	void onMessage(const std::vector<uint8_t> &msg);
 private:
+	bool writeMessage(const std::string &msg);
+	bool writeMessage(const std::vector<uint8_t> &msg);
+
 	GAFactory *m_pFactory;
 	nut::TCPPacketSocket *m_pSocket;
 };
@@ -504,6 +511,51 @@ bool DistributedGeneticAlgorithm::onAlgorithmLoop(GAFactory &factory, bool gener
 	}
 
 	return true;
+}
+
+bool DistributedGeneticAlgorithm::writeMessage(const std::string &msg)
+{
+	writeLog(LOG_DEBUG, "Forwarding message: %s", msg.c_str());
+
+	serut::VectorSerializer vser;
+
+	vser.writeInt32(GASERVER_COMMAND_FACTORYMESSAGE_STRING);
+	vser.writeString(msg);
+
+	return m_pSocket->write(vser.getBufferPointer(), vser.getBufferSize());
+}
+
+bool DistributedGeneticAlgorithm::writeMessage(const std::vector<uint8_t> &msg)
+{
+	writeLog(LOG_DEBUG, "Forwarding binary message of length: %d", msg.size());
+
+	serut::VectorSerializer vser;
+	
+	vser.writeInt32(GASERVER_COMMAND_FACTORYMESSAGE_BYTES);
+	if (msg.size() > 0)
+		vser.writeBytes(&msg[0], msg.size());
+
+	return m_pSocket->write(vser.getBufferPointer(), vser.getBufferSize());
+}
+
+void DistributedGeneticAlgorithm::onMessage(const std::string &msg)
+{
+	if (!m_pSocket)
+	{
+		writeLog(LOG_INFO, "Got text message '%s' but there's no client to forward to", msg.c_str());
+		return;
+	}
+	writeMessage(msg);
+}
+
+void DistributedGeneticAlgorithm::onMessage(const std::vector<uint8_t> &msg)
+{
+	if (!m_pSocket)
+	{
+		writeLog(LOG_INFO, "Got binary message of %d bytes, but there's no client to forward to", msg.size());
+		return;
+	}
+	writeMessage(msg);
 }
 
 void runHelper(const std::string &moduleDir)

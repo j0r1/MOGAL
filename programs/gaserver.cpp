@@ -38,6 +38,7 @@
 #include "log.h"
 #include <serut/memoryserializer.h>
 #include <serut/dummyserializer.h>
+#include <serut/vectorserializer.h>
 #ifdef MOGALCONFIG_NETINET_TCP_H
 	#include <netinet/tcp.h>
 #endif // MOGALCONFIG_NETINET_TCP_H
@@ -121,6 +122,8 @@ private:
 
 	bool calculateFitness(std::vector<GenomeWrapper> &population);
 	bool onAlgorithmLoop(GAFactory &factory, bool generationInfoChanged);
+	void onMessage(const std::string &msg);
+	void onMessage(const std::vector<uint8_t> &msg);
 
 	nut::TCPSocket &m_listenSocket;
 	std::list<ConnectionInfo *> m_connections;
@@ -181,6 +184,9 @@ public:
 
 	double getLastReceiveFitnessTime() const							{ return m_lastReceiveFitnessTime; }
 	void resetLastReceiveFitnessTime()								{ m_lastReceiveFitnessTime = -1; }
+
+	bool writeMessage(const std::string &msg);
+	bool writeMessage(const std::vector<uint8_t> &msg);
 private:
 	nut::TCPPacketSocket *m_pSocket;
 	ConnectionState m_state;
@@ -755,6 +761,31 @@ void ConnectionInfo::waitForClose()
 		}
 	}
 	writeLog(LOG_INFO, "Timeout while waiting for client to close connection");
+}
+
+bool ConnectionInfo::writeMessage(const std::string &msg)
+{
+	writeLog(LOG_DEBUG, "Forwarding message: %s", msg.c_str());
+
+	serut::VectorSerializer vser;
+
+	vser.writeInt32(GASERVER_COMMAND_FACTORYMESSAGE_STRING);
+	vser.writeString(msg);
+
+	return m_pSocket->write(vser.getBufferPointer(), vser.getBufferSize());
+}
+
+bool ConnectionInfo::writeMessage(const std::vector<uint8_t> &msg)
+{
+	writeLog(LOG_DEBUG, "Forwarding binary message of length: %d", msg.size());
+
+	serut::VectorSerializer vser;
+	
+	vser.writeInt32(GASERVER_COMMAND_FACTORYMESSAGE_BYTES);
+	if (msg.size() > 0)
+		vser.writeBytes(&msg[0], msg.size());
+
+	return m_pSocket->write(vser.getBufferPointer(), vser.getBufferSize());
 }
 
 ServerAlgorithm::ServerAlgorithm(nut::TCPSocket &listenSocket, const std::string &baseDir) : m_listenSocket(listenSocket)
@@ -1522,6 +1553,26 @@ bool ServerAlgorithm::onAlgorithmLoop(GAFactory &factory, bool generationInfoCha
 		m_generationInfoCount++;
 	
 	return true;
+}
+
+void ServerAlgorithm::onMessage(const std::string &msg)
+{
+	if (!m_pClientConnection)
+	{
+		writeLog(LOG_INFO, "Got text message '%s' but there's no client to forward to", msg.c_str());
+		return;
+	}
+	m_pClientConnection->writeMessage(msg);
+}
+
+void ServerAlgorithm::onMessage(const std::vector<uint8_t> &msg)
+{
+	if (!m_pClientConnection)
+	{
+		writeLog(LOG_INFO, "Got binary message of %d bytes, but there's no client to forward to", msg.size());
+		return;
+	}
+	m_pClientConnection->writeMessage(msg);
 }
 
 int main2(int argc, char *argv[])

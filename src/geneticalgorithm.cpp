@@ -70,6 +70,7 @@ namespace mogal
 #define GENETICALGORITHM_ERRSTR_NOCURRENTFACTORY		"No current factory is available"
 #define GENETICALGORITHM_ERRSTR_CANTWRITEKEEPALIVE		"Error writing keepalive packet: "
 #define GENETICALGORITHM_ERRSTR_CANTWRITEFACTORYPARAMETERS	"Unable to serialize the factory parameters: "
+#define GENETICALGORITHM_ERRSTR_ERROR_FACTMSG_STRING  "Unable to read string from received packet: "
 
 GeneticAlgorithmParams::GeneticAlgorithmParams()
 { 
@@ -550,6 +551,25 @@ bool GeneticAlgorithm::run(const nut::NetworkLayerAddress &serverAddress, uint16
 				{
 					setErrorString(GENETICALGORITHM_ERRSTR_NOHELPERS);
 					return false;
+				}
+				else if (cmd == GASERVER_COMMAND_FACTORYMESSAGE_STRING)
+				{
+					std::string msg;
+
+					if (!mser.readString(msg))
+					{
+						setErrorString(GENETICALGORITHM_ERRSTR_ERROR_FACTMSG_STRING + mser.getErrorString());
+						return false;
+					}
+					onMessage(msg);
+				}
+				else if (cmd == GASERVER_COMMAND_FACTORYMESSAGE_BYTES)
+				{
+					std::vector<uint8_t> bytes(packet.getLength()-4); // minus one 32bit int
+
+					if (bytes.size() > 0)
+						memcpy(&bytes[0], packet.getData(), bytes.size());
+					onMessage(bytes);
 				}
 				else
 				{

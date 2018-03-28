@@ -203,6 +203,9 @@ protected:
 	virtual void onCurrentBest(const std::list<Genome *> &bestGenomes) const		{ }
 	virtual void feedbackStatus(const std::string &str) const				{ }
 	virtual bool stopRemoteAlgorithm()							{ return false; }
+
+	virtual void onMessage(const std::string &msg) { }
+	virtual void onMessage(const std::vector<uint8_t> &msg) { }
 private:
 	bool processNewBestGenomes(GAFactory &factory, serut::SerializationInterface &si);
 	
@@ -211,6 +214,8 @@ private:
 	GAFactory *m_pLoadedFactory;
 	GAFactory *m_pCurrentFactory;
 	int m_generationCount;
+
+	friend class GAFactory;
 };
 	
 } // end namespace
