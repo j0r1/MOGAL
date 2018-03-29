@@ -285,11 +285,13 @@ bool GeneticAlgorithm::run(GAFactory &factory, size_t populationSize, const Gene
 		if (currentTime - prevTime > GENETICALGORITHM_REPORTINTERVAL)
 		{
 			prevTime = currentTime;
-			onCurrentBest(m_bestGenomes);
+			onCurrentBest(m_bestGenomes); // TODO: this is deprecated, shouldn't be used
+			m_pCurrentFactory->onCurrentBest(m_bestGenomes);
 		}
 	}
 	
-	onCurrentBest(m_bestGenomes);
+	onCurrentBest(m_bestGenomes); // TODO: this is deprecated, shouldn't be used
+	m_pCurrentFactory->onCurrentBest(m_bestGenomes);
 
 	for (size_t i = 0 ; i < populationSize ; i++)
 		delete population[i].getGenome();
@@ -727,7 +729,9 @@ bool GeneticAlgorithm::processNewBestGenomes(GAFactory &factory, serut::Serializ
 	
 	m_bestGenomes = genomeList;
 	
-	onCurrentBest(m_bestGenomes);
+	onCurrentBest(m_bestGenomes); // TODO: this is deprecated, shouldn't be used
+	m_pCurrentFactory->onCurrentBest(m_bestGenomes);
+
 	return true;
 }
 

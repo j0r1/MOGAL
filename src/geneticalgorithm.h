@@ -200,7 +200,11 @@ public:
 protected:
 	virtual bool calculateFitness(std::vector<GenomeWrapper> &population);
 	virtual bool onAlgorithmLoop(GAFactory &factory, bool generationInfoChanged);
+
+	// This is deprecated, instead the GAFactory's onCurrentBest will be called
+	// Override that function!
 	virtual void onCurrentBest(const std::list<Genome *> &bestGenomes) const		{ }
+
 	virtual void feedbackStatus(const std::string &str) const				{ }
 	virtual bool stopRemoteAlgorithm()							{ return false; }
 

@@ -186,6 +186,7 @@ protected:
 	/** Returns a pointer to the current genetic algorithm parameters. */
 	GeneticAlgorithmParams getCurrentAlgorithmParameters() const					{ return m_gaParams; }
 
+	virtual void onCurrentBest(const std::list<Genome *> &bestGenomes)		{ }
 	void sendMessage(const std::string &msg) { if (!m_pCurrentAlgorithm) return; m_pCurrentAlgorithm->onMessage(msg); }
 	void sendMessage(const std::vector<uint8_t> &msg) { if (!m_pCurrentAlgorithm) return; m_pCurrentAlgorithm->onMessage(msg); }
 private:
