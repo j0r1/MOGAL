@@ -70,7 +70,7 @@ public:
 class MOGAL_IMPORTEXPORT GAFactory : public errut::ErrorBase
 {
 protected:
-	GAFactory()											{ }
+	GAFactory()											{ m_pCurrentAlgorithm = 0; }
 public:
 	~GAFactory()											{ }
 
