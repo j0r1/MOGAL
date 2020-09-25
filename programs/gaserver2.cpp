@@ -752,7 +752,13 @@ bool ConnectionInfo::writeMessage(const std::string &msg)
 	serut::VectorSerializer vser;
 
 	vser.writeInt32(GASERVER_COMMAND_FACTORYMESSAGE_STRING);
-	vser.writeString(msg);
+
+	const size_t maxPartLen = 65535;
+	int32_t numParts = (int32_t)(msg.length()/maxPartLen) + ((msg.length()%maxPartLen == 0)?0:1);
+
+	vser.writeInt32(numParts);
+	for (int32_t i = 0 ; i < numParts ; i++)
+		vser.writeString(msg.substr(i*maxPartLen, maxPartLen));
 
 	return m_pSocket->write(vser.getBufferPointer(), vser.getBufferSize());
 }

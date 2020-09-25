@@ -71,6 +71,8 @@ namespace mogal
 #define GENETICALGORITHM_ERRSTR_CANTWRITEKEEPALIVE		"Error writing keepalive packet: "
 #define GENETICALGORITHM_ERRSTR_CANTWRITEFACTORYPARAMETERS	"Unable to serialize the factory parameters: "
 #define GENETICALGORITHM_ERRSTR_ERROR_FACTMSG_STRING  "Unable to read string from received packet: "
+#define GENETICALGORITHM_ERRSTR_ERROR_FACTMSG_NUMPARTS "Unable to read number of string parts from received packet: "
+#define GENETICALGORITHM_ERRSTR_CANTWRITEFACTNAME "Unable to write factory name: "
 
 GeneticAlgorithmParams::GeneticAlgorithmParams()
 { 
@@ -447,7 +449,12 @@ bool GeneticAlgorithm::run(const nut::NetworkLayerAddress &serverAddress, uint16
 
 		ds.writeInt32(GASERVER_COMMAND_FACTORY);
 		ds.writeInt32(0); // space reserved for factory number
-		ds.writeString(factoryName);
+		if (!ds.writeString(factoryName))
+		{
+			setErrorString(GENETICALGORITHM_ERRSTR_CANTWRITEFACTNAME + ds.getErrorString());
+			return false;
+		}
+
 		ds.writeInt32(populationSize);
 		
 		if (factory.getCurrentParameters() == 0)
@@ -557,12 +564,26 @@ bool GeneticAlgorithm::run(const nut::NetworkLayerAddress &serverAddress, uint16
 				else if (cmd == GASERVER_COMMAND_FACTORYMESSAGE_STRING)
 				{
 					std::string msg;
+					int32_t numParts = 0;
 
-					if (!mser.readString(msg))
+					if (!mser.readInt32(&numParts))
 					{
-						setErrorString(GENETICALGORITHM_ERRSTR_ERROR_FACTMSG_STRING + mser.getErrorString());
+						setErrorString(GENETICALGORITHM_ERRSTR_ERROR_FACTMSG_NUMPARTS + mser.getErrorString());
 						return false;
 					}
+
+					for (int32_t i = 0 ; i < numParts ; i++)
+					{
+						std::string msgPart;
+
+						if (!mser.readString(msgPart))
+						{
+							setErrorString(GENETICALGORITHM_ERRSTR_ERROR_FACTMSG_STRING + mser.getErrorString());
+							return false;
+						}
+						msg += msgPart;
+					}
+
 					onMessage(msg);
 				}
 				else if (cmd == GASERVER_COMMAND_FACTORYMESSAGE_BYTES)
