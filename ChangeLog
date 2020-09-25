@@ -3,6 +3,9 @@
                                MOGAL ChangeLog
 
 
+Version 0.12.1, September 2020
+ * Bugfix in message passing, message is now split in 64k parts
+
 Version 0.12.0, May 2018
  * A genetic algorithm factory can now send messages which are delivered
    to the genetic algorithm instance that started the optimization.
