@@ -60,14 +60,20 @@ protected:
 	{
 		double x = pickDouble();
 		double val = x*(double)num; 
-		return (int)val;
+		int r = (int)val;
+		if (r >= num)
+			r = num-1;
+		return r;
 	}
 
 	int pickGenome(double beta, size_t populationSize) const
 	{
 		double x = pickDouble();
 		double val = (1.0-std::pow(x, 1.0/(1.0+beta)))*((double)populationSize);
-		return (int)val;
+		int r = (int)val;
+		if (r >= (int)populationSize)
+			r = (int)populationSize - 1;
+		return r;
 	}
 
 	double pickDouble() const { return getRandomNumberGenerator()->pickRandomNumber(); }
