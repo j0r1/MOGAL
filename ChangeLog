@@ -3,6 +3,9 @@
                                MOGAL ChangeLog
 
 
+Version 0.12.2, February 2021
+ * Bugfix: a random number apparently could cause an out of bounds index
+
 Version 0.12.1, September 2020
  * Bugfix in message passing, message is now split in 64k parts
 
